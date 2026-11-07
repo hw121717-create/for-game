@@ -40,7 +40,7 @@ main:has(#play:not([hidden])) > .tag { display:none }
 .hud span { white-space:nowrap; padding:.35em .55em; border-radius:.6em; background:#261f41; color:#fff8ec }
 .hud span:empty { display:none }
 #progress { margin-left:auto }
-#section, #notice { margin:5px 0; line-height:1.3 }
+#notice { margin:5px 0; line-height:1.3 }
 .play-actions { display:flex; gap:8px }
 .touch-help { display:none }
 @media (pointer:coarse) { .touch-help { display:block } }
@@ -49,6 +49,14 @@ canvas { width:100%; height:auto; display:block; border:2px solid #8777ac; borde
 .controls button { flex:1; min-width:76px }
 #notice { font-weight:650 }
 small { color:#dbc8e7 }
+[hidden] { display:none !important }
+.story {
+  position:absolute; inset:auto 3% 5%; padding:clamp(8px,2cqw,20px);
+  background:#261d3df5; border:2px solid #eab4d9; border-radius:12px;
+  font-size:clamp(11px,2.5cqw,20px);
+}
+.story p { margin:4px 0 8px }
+.story button { padding:4px 9px; font-size:.85em }
 </style>
 </head>
 <body>
@@ -65,13 +73,17 @@ small { color:#dbc8e7 }
 <section id="play" hidden>
 <header class="play-header">
 <button id="back">캐릭터 선택</button>
+<button id="music" aria-pressed="true">BGM 켜짐</button>
 <h1 id="stage-title"></h1>
 </header>
 <div class="playfield">
 <canvas id="scene" width="720" height="438" tabindex="-1" aria-label="두근두근 사건파일 자동 달리기 게임"></canvas>
 <div class="hud" aria-label="게임 상태"><span id="hearts">하트 0</span><span id="energy">특수기 0/8</span><span id="life">체력 3</span><span id="objective"></span><span id="progress">0%</span></div>
+<div id="dialogue" class="story" role="region" aria-label="스토리 대화" hidden>
+<strong id="speaker"></strong><p id="line" aria-live="polite"></p>
+<button id="advance">계속 · Enter</button>
 </div>
-<p id="section" class="tag"></p>
+</div>
 <p id="notice" aria-live="polite"></p>
 <div class="play-actions">
 <button id="restart" hidden>처음부터</button><button id="next" hidden>다음 스테이지</button><button id="whistle" hidden>호루라기 C</button>
@@ -89,7 +101,7 @@ const members = [
   ['minju','민주','달빛 계단','공중 발판을 만들어 한 번 더 뛰어요.'],
   ['moka','모카','고양이 스텝','낮게 미끄러진 뒤 자동으로 튀어 올라요.'],
   ['wonhee','원희','하트 자석','주변 하트를 위아래 경로에서 끌어당겨요.'],
-  ['iroha','이로하','비트 스텝','화면에 표시되는 세 박자에 맞춰 점프나 슬라이드를 누르면 보너스를 얻어요.'],
+  ['iroha','이로하','비트 스텝','캐릭터 주위에 빛이 번지는 세 박자에 맞춰 점프나 슬라이드를 누르면 보너스를 얻어요.'],
 ];
 const get = id => document.getElementById(id);
 const canvas = get('scene');
@@ -154,15 +166,6 @@ for (const member of members) {
 }
 select(selected);
 
-const sections = [
-  {from:0, title:'01 · 골목 입구', hint:'하트가 그리는 곡선을 따라 상자와 끊긴 길을 넘어요.'},
-  {from:3600, title:'01 · 시장 골목', hint:'낮은 간판 밑 하트를 따라 슬라이드하세요.'},
-  {from:7200, title:'02 · 자석 거리', hint:'민트색 발판을 밟으면 주변 하트가 끌려와요.'},
-  {from:10300, title:'02 · 옥상 보너스', hint:'이단 점프로 분홍 발판의 별을 챙기거나 아래 길로 달려요.'},
-  {from:14400, title:'03 · 네온 골목', hint:'상자를 넘은 뒤 착지해서 다음 간판 밑으로 빠져나가요.'},
-  {from:18300, title:'03 · 첫 단서', hint:'끊긴 골목을 건너 마지막 단서를 찾아요.'},
-];
-
 const encounters = [
   [590,'box'], [1070,'box'], [1550,'sign'], [2470,'box'], [2940,'sign'],
   [3730,'sign'], [4200,'box'], [4620,'sign'], [5490,'box'], [5910,'sign'],
@@ -179,12 +182,6 @@ const bonusLedges = [[10500,112,350],[10820,150,280],[15690,114,230],[15950,150,
   [18570,116,225],[18840,151,240]];
 const sweepPads = [8480,14000,17420];
 
-const rooftopSections = [
-  {from:0, title:'01 · 달빛 연습', hint:'하늘색으로 빛나는 발판에 내려앉아 보세요.'},
-  {from:3200, title:'02 · 높은 길', hint:'공중에서 한 번 더 뛰어 높은 발판으로 올라가세요.'},
-  {from:6800, title:'03 · 깜빡이는 옥상', hint:'테두리만 보이는 발판은 잠깐 사라져요. 아래 길로도 갈 수 있어요.'},
-  {from:10500, title:'04 · 달빛 편지', hint:'상자와 간판을 지나 옥상 끝의 편지를 찾아요.'},
-];
 const rooftopEncounters = [
   [880,'box'], [1810,'sign'], [2680,'box'], [3580,'box'], [4310,'sign'],
   [5180,'box'], [6120,'sign'], [7070,'box'], [7640,'sign'], [8360,'box'],
@@ -200,62 +197,43 @@ const rooftops = [
   [12400,124,145,.2], [13630,125,170,.8],
 ];
 
-const chapter = (title, story, palette, segments, obstacles, pace) => ({
-  title, story, palette, obstacles, pace,
-  sections: segments.map(([from,title,hint]) => ({from,title,hint})),
-});
+const chapter = (title, palette, obstacles, pace) => ({title, palette, obstacles, pace});
 const stages = [
-  {title:'Magnetic ✦ 자석 골목', story:'수상한 메시지를 따라 첫 단서를 찾아요.',
-    palette:['#322c59','#efacbb','#54476e','#35304d'], sections, obstacles:encounters, pace:240},
-  {title:'Midnight Fiction ✦ 자정의 옥상', story:'달빛 발판을 따라 옥상에 숨겨진 편지를 찾아요.',
-    palette:['#29264c','#9480ae','#4e4b75','#353154'], sections:rooftopSections, obstacles:rooftopEncounters, pace:240},
-  chapter('Cherish ✦ 보내지 못한 편지','답장을 고르고 말풍선을 따라 달려요.',
-    ['#563255','#ffbbce','#915f7e','#533552'], [
-    [0,'01 · 편지 도착','말풍선을 따라 점프와 슬라이드를 번갈아 써요.'],
-    [3300,'02 · 어떤 답장?','분홍 갈림길 표식에서 뛰면 위쪽 답장, 그대로 달리면 아래쪽 답장이 열려요.'],
-    [7300,'03 · 답장을 따라','고른 답장에 따라 하트 높이와 장애물 순서가 달라져요.'],
-    [10900,'04 · 편지 보내기','마지막 연속 장애물을 지나 편지를 보내요.'],
-    ], [[720,'box'],[1480,'sign'],[2240,'box'],[2910,'sign'],[3810,'box'],[4540,'sign'],
+  {title:'Magnetic ✦ 자석 골목',
+    palette:['#322c59','#efacbb','#54476e','#35304d'], obstacles:encounters, pace:240},
+  {title:'Midnight Fiction ✦ 자정의 옥상',
+    palette:['#29264c','#9480ae','#4e4b75','#353154'], obstacles:rooftopEncounters, pace:230},
+  chapter('Cherish ✦ 보내지 못한 편지',
+    ['#563255','#ffbbce','#915f7e','#533552'], [[720,'box'],[1480,'sign'],[2240,'box'],[2910,'sign'],[3810,'box'],[4540,'sign'],
         [5260,'box',true],[5910,'sign'],[6610,'box'],[7880,'sign'],[8510,'box'],[9140,'sign'],
-        [9770,'box'],[10360,'sign'],[11030,'box'],[11580,'sign'],[12110,'box'],[12620,'sign'],[13200,'box'],[13770,'sign']], 246),
-  chapter('Do the Dance ✦ 고양이 댄스홀','고양이 조명이 켜지는 박자에 맞춰 움직여요.',
-    ['#1d1746','#a565b3','#544485','#251f4d'], [
-    [0,'01 · 리허설','장애물 앞에서 박자 안내가 나타나요. 타이밍에 맞춰 점프 또는 슬라이드!'],
-    [3200,'02 · 스포트라이트','정확한 입력을 연달아 맞추면 댄스 콤보가 쌓여요.'],
-    [7300,'03 · 교차 박자','점프와 슬라이드가 빠르게 교차해요.'],
-    [10800,'04 · 마지막 안무','콤보를 이어 무대 끝의 단서를 찾아요.'],
-    ], [[760,'box'],[1490,'sign'],[2210,'box'],[2930,'sign'],[3620,'box'],[4230,'sign'],
+        [9770,'box'],[10360,'sign'],[11030,'box'],[11580,'sign'],[12110,'box'],[12620,'sign'],[13200,'box'],[13770,'sign']], 225),
+  chapter('Do the Dance ✦ 고양이 댄스홀',
+    ['#1d1746','#a565b3','#544485','#251f4d'], [[760,'box'],[1490,'sign'],[2210,'box'],[2930,'sign'],[3620,'box'],[4230,'sign'],
         [4860,'box'],[5460,'sign'],[6060,'box'],[6650,'sign'],[7330,'box'],[7860,'sign'],
         [8390,'box'],[8920,'sign'],[9470,'box'],[10000,'sign'],[10520,'box'],[11080,'sign'],
-        [11550,'box'],[12010,'sign'],[12520,'box'],[13030,'sign'],[13520,'box'],[14000,'sign']], 250),
-  chapter('NOT CUTE ANYMORE ✦ 뒤집힌 쇼윈도','쇼윈도가 뒤집힐 때 바뀌는 길을 읽어요.',
-    ['#2b223b','#ba788d','#65506b','#353547'], [
-    [0,'01 · 쇼윈도 앞','바닥 화살표는 다음 장애물의 조작을 알려줘요.'],
-    [3200,'02 · 쇼윈도 전환','화살표가 켜진 뒤 장애물이 상자 또는 간판으로 펼쳐져요.'],
-    [7000,'03 · 네온 거리','전환이 더 자주 나타나요. 화살표를 먼저 보세요.'],
-    [10600,'04 · 레코드 가게','연속 전환을 지나 마지막 단서를 확보해요.'],
-    ], [[700,'box'],[1450,'sign'],[2180,'box'],[2910,'sign'],[3620,'flipBox'],[4300,'flipSign'],
+        [11550,'box'],[12010,'sign'],[12520,'box'],[13030,'sign'],[13520,'box'],[14000,'sign']], 232),
+  chapter('NOT CUTE ANYMORE ✦ 뒤집힌 쇼윈도',
+    ['#2b223b','#ba788d','#65506b','#353547'], [[700,'box'],[1450,'sign'],[2180,'box'],[2910,'sign'],[3620,'flipBox'],[4300,'flipSign'],
         [4960,'box'],[5590,'flipSign'],[6240,'flipBox'],[6850,'sign'],[7430,'flipBox'],
         [8000,'flipSign'],[8560,'flipBox'],[9100,'flipSign'],[9680,'box'],[10240,'flipSign'],
-        [10830,'flipBox'],[11380,'flipSign'],[11910,'flipBox'],[12410,'flipSign'],[12930,'flipBox'],[13430,'flipSign'],[13900,'flipBox']], 255),
-  chapter('체포하겠어 ✦ 모카 구출 작전','착각 유령을 쫓아 증거를 모으고 호루라기로 모카를 구해요.',
-    ['#221c3d','#b25d80','#533d65','#30243c'], [
-    [0,'01 · 추격 개시','흰색 증거 조각을 3개 이상 모으세요.'],
-    [3500,'02 · 유령의 흔적','상자와 간판을 피해 다음 증거를 따라가요.'],
-    [7400,'03 · 마지막 증거','증거를 모으면 마지막 스포트라이트에서 호루라기를 쓸 수 있어요.'],
-    [11800,'04 · 모카 구출','스포트라이트가 겹칠 때 C 또는 호루라기 버튼을 눌러요.'],
-    ], [[750,'box'],[1460,'sign'],[2180,'box'],[2900,'sign'],[3590,'box'],[4210,'sign'],
+        [10830,'flipBox'],[11380,'flipSign'],[11910,'flipBox'],[12410,'flipSign'],[12930,'flipBox'],[13430,'flipSign'],[13900,'flipBox']], 232),
+  chapter('체포하겠어 ✦ 모카 구출 작전',
+    ['#221c3d','#b25d80','#533d65','#30243c'], [[750,'box'],[1460,'sign'],[2180,'box'],[2900,'sign'],[3590,'box'],[4210,'sign'],
         [4820,'box'],[5450,'sign'],[6020,'box'],[6680,'sign'],[7310,'box'],[7910,'sign'],
         [8520,'box'],[9150,'sign'],[9720,'box'],[10280,'sign'],[10920,'box'],[11500,'sign'],
-        [12020,'box'],[12560,'sign'],[13090,'box']], 260),
+        [12020,'box'],[12560,'sign'],[13090,'box']], 235),
 ];
 
 function obstacleKind(kind) {
   return kind === 'flipBox' ? 'box' : kind === 'flipSign' ? 'sign' : kind;
 }
 
+const rescueGate = 13400;
+const rescueDuration = 2.7;
+let rescueTime = 0;
+
 function rescueWindow() {
-  return stage === 5 && run.evidence >= 3 && run.x >= 13400 && run.x <= 14250;
+  return stage === 5 && run.evidence >= 3 && run.x >= rescueGate && run.x < finish;
 }
 
 function lit(ledge) {
@@ -305,7 +283,7 @@ function course() {
 
 function reset(saved = null) {
   run = {x:saved?.x || 0, height:0, vy:0, jumps:0, hearts:saved?.hearts || 0, energy:saved?.energy || 0, hp:3, slide:0, hurt:0,
-    magnet:0, dash:0, cat:false, time:0, beats:[], platform:0, land:0, standing:null, section:-1, route:null, combo:0, bestCombo:0, evidence:0, bonus:saved?.bonus || 0, items:course()};
+    magnet:0, dash:0, cat:false, time:0, beats:[], platform:0, land:0, standing:null, route:null, combo:0, bestCombo:0, evidence:0, bonus:saved?.bonus || 0, items:course()};
   if (saved) for (const item of run.items) item.done = item.x <= saved.x;
 }
 reset();
@@ -341,6 +319,8 @@ function stageButtons() {
 function chooseStage(index) {
   if (index > unlocked || !stages[index]) return;
   stage = index;
+  dialogue = null;
+  get('dialogue').hidden = true;
   finish = stage === 0 ? magneticFinish : standardFinish;
   checkpoint = null;
   get('restart').hidden = true;
@@ -350,20 +330,63 @@ function chooseStage(index) {
   select(selected);
   stageButtons();
   get('next').hidden = true;
-  get('whistle').hidden = stage !== 5;
+  get('whistle').hidden = true;
   get('stage-title').textContent = stages[stage].title;
-  get('notice').textContent = stages[stage].story;
+  get('notice').textContent = '';
 }
-chooseStage(0);
 
 function showPlay(playing) {
   get('selection').hidden = playing;
   get('play').hidden = !playing;
 }
+const openings = [
+  [['윤아','휴대폰이 계속 같은 골목을 가리켜. 첫 단서는 저기 있는 것 같아.']],
+  [['민주','옥상에 달빛이 닿자 발판이 보였어. 편지가 어디로 갔는지 따라가 보자.']],
+  [['원희','보내지 못한 편지네. 별빛 쪽으로 뛰어오를까, 하트를 따라 답장할까?']],
+  [['이로하','음악이 아직 흐르고 있어. 무대를 지나면 고양이가 숨겨 둔 단서를 찾을 수 있겠어.']],
+  [['윤아','쇼윈도에 우리 모습이 비쳐. 잠깐, 저 뒤에서 누가 손을 흔들었어.']],
+  [['윤아','모카 목소리가 들려. 흰 증거 조각을 세 개 이상 모으자.'],
+   ['이로하','보라색 아치를 통과한 뒤 결승선 전에 C로 호루라기를 불어. 터치 화면에서는 아래 호루라기 버튼을 써.']],
+];
+const closings = [
+  [['윤아','찾았다! 이 단서에 옥상으로 올라가는 길이 그려져 있어.']],
+  [['민주','달빛 아래에서만 읽히는 편지였어. 이제 답장을 전하러 가자.']],
+  [['원희','답장을 보냈어! 저쪽 댄스홀에서 음악이 들려.']],
+  [['이로하','고양이가 놓고 간 단서야. 쇼윈도에 뭔가 숨겨져 있나 봐.']],
+  [['윤아','유리 너머에서 모카를 봤어. 다 같이 데리러 가자.']],
+  [['모카','호루라기 소리 듣고 너희인 줄 알았어. 와 줘서 고마워!'],
+   ['민주','이제 다섯 명 다 모였다. 같이 돌아가자.']],
+];
+let dialogue = null;
+chooseStage(0);
+
+function advanceDialogue() {
+  if (!dialogue) return;
+  const entry = dialogue.lines[dialogue.index++];
+  if (entry) {
+    get('speaker').textContent = entry[0];
+    get('line').textContent = entry[1];
+    return;
+  }
+  const onClose = dialogue.onClose;
+  dialogue = null;
+  get('dialogue').hidden = true;
+  onClose();
+  canvas.focus();
+}
+
+function showDialogue(lines, onClose) {
+  dialogue = {lines, index:0, onClose};
+  get('dialogue').hidden = false;
+  advanceDialogue();
+  get('advance').focus();
+}
+get('advance').addEventListener('click', advanceDialogue);
+
 function enterPlay() {
   showPlay(true);
-  start();
-  canvas.focus();
+  startMusic();
+  showDialogue(openings[stage], start);
 }
 get('enter').addEventListener('click', enterPlay);
 get('back').addEventListener('click', () => {
@@ -397,7 +420,8 @@ function start() {
   get('restart').hidden = true;
   mode = 'playing';
   get('next').hidden = true;
-  get('notice').textContent = resumeCheckpoint ? '체크포인트부터 이어 달려요.' : '하트를 모아 특수기를 충전하세요.';
+  get('notice').textContent = '';
+  get('whistle').hidden = stage !== 5;
 }
 
 function jump(force = 460) {
@@ -411,9 +435,16 @@ function jump(force = 460) {
 function input(action) {
   if (mode !== 'playing') return;
   if (action === 'whistle') {
-    if (rescueWindow()) end(true);
-    else if (stage === 5) get('notice').textContent = run.evidence < 3
-      ? '증거가 더 필요해요.' : '스포트라이트가 겹칠 때 불어요.';
+    if (rescueWindow()) {
+      rescueTime = 0;
+      mode = 'rescue';
+      get('whistle').hidden = true;
+      if (musicEnabled && audioContext?.state === 'running') {
+        const now = audioContext.currentTime;
+        musicNote(90,'sine',now+.015,.13,.42);
+        musicNote(95,'sine',now+.16,.22,.45);
+      }
+    }
     return;
   }
   if (stage === 3 && (action === 'jump' || action === 'slide')) {
@@ -430,7 +461,6 @@ function input(action) {
   if (action === 'skill') {
     if (run.energy < 8) return;
     run.energy -= 8;
-    get('notice').textContent = selected[2] + '!';
     switch (selected[0]) {
       case 'yunah': run.dash = .9; break;
       case 'minju': run.platform = .8; run.jumps = 0; jump(450); break;
@@ -444,7 +474,6 @@ function input(action) {
   if (beat >= 0) {
     run.beats.splice(beat, 1);
     run.hearts += 3;
-    get('notice').textContent = '비트 성공! 하트 +3';
   }
   if (action === 'jump' && run.jumps < 2) jump();
   if (action === 'slide' && (run.height === 0 || run.standing)) run.slide = .56;
@@ -463,6 +492,7 @@ canvas.addEventListener('pointerup', event => {
   const dx = event.clientX - touchStart.x;
   const dy = event.clientY - touchStart.y;
   touchStart = null;
+  if (dialogue || mode === 'rescue') return;
   if (mode === 'paused' || mode === 'lost' || (mode === 'clear' && stage === 5)) {
     start();
     return;
@@ -474,11 +504,13 @@ canvas.addEventListener('pointerup', event => {
 window.addEventListener('keydown', event => {
   if (event.code === 'Enter' || event.code === 'NumpadEnter') {
     const focusedAction = event.target instanceof HTMLButtonElement
-      && ['back','restart','next','whistle'].includes(event.target.id);
+      && ['back','restart','next','whistle','music'].includes(event.target.id);
     if (focusedAction) return;
     event.preventDefault();
     if (event.repeat) return;
     if (get('play').hidden) enterPlay();
+    else if (dialogue) advanceDialogue();
+    else if (mode === 'rescue') return;
     else if (mode === 'clear' && stage < 5) get('next').click();
     else if (mode !== 'playing') {
       start();
@@ -498,23 +530,29 @@ document.addEventListener('visibilitychange', () => {
 
 function end(won) {
   mode = won ? 'clear' : 'lost';
+  get('whistle').hidden = true;
   const canResume = !won && Boolean(checkpoint);
   get('restart').hidden = !canResume;
   if (won && stage < 5) {
     unlocked = Math.max(unlocked,stage+1);
     try { localStorage.setItem('illit-stage-unlocked',String(unlocked)); } catch {}
     stageButtons();
-    get('next').hidden = false;
+
   }
   const messages = ['첫 단서 발견! 옥상 보너스 별 '+run.bonus+'개 · 자정의 옥상이 열렸어요.','달빛 편지를 찾았어요.',
     run.route === 'upper' ? '별빛 답장을 보냈어요.' : '하트 답장을 보냈어요.',
     '댄스홀 단서 발견! 최고 콤보 ' + run.bestCombo, '쇼윈도 뒤에서 모카의 행방을 찾았어요.',
     '구출 성공! 다섯 멤버가 다시 모였어요.'];
   const result = won ? messages[stage] : stage === 5 && run.x >= finish
-    ? '유령이 달아났어요. 증거 3개와 호루라기 타이밍을 확인하세요.'
+    ? '유령이 달아났어요. 다시 도전해요.'
     : canResume ? '체크포인트에서 이어 달릴 수 있어요.' : '체력이 모두 떨어졌어요. 다시 도전해요!';
   const nextHint = won && stage < 5 ? '다음 스테이지' : canResume ? '체크포인트부터' : '다시 도전';
-  get('notice').textContent = result + ' · Enter ' + nextHint;
+  const showResult = () => {
+    get('notice').textContent = result + ' · Enter ' + nextHint;
+    get('next').hidden = !won || stage === 5;
+  };
+  if (won) showDialogue(closings[stage], showResult);
+  else showResult();
 }
 
 function update(dt) {
@@ -539,7 +577,6 @@ function update(dt) {
     run.height = run.vy = run.jumps = 0;
     run.slide = 0;
     run.hurt = 1;
-    get('notice').textContent = '틈에 빠졌어요! 다시 발판 위에서 달려요.';
   }
   if (!run.standing && (run.height > 0 || run.vy > 0)) {
     const oldHeight = run.height;
@@ -567,7 +604,6 @@ function update(dt) {
     if (item.kind === 'checkpoint' && previousX < item.x && run.x >= item.x) {
       item.done = true;
       checkpoint = {x:item.x,hearts:run.hearts,energy:run.energy,bonus:run.bonus};
-      get('notice').textContent = '체크포인트 도착! 실패하면 여기서 다시 시작해요.';
     } else if (item.kind === 'fork' && previousX < item.x && run.x >= item.x) {
       item.done = true;
       run.route = run.height >= 54 ? 'upper' : 'lower';
@@ -577,18 +613,15 @@ function update(dt) {
         if (token.kind === 'heart') token.height = upper ? Math.min(175,token.height+38) : Math.max(18,token.height-15);
         if (upper && ['box','sign'].includes(token.kind)) token.kind = token.kind === 'box' ? 'sign' : 'box';
       }
-      get('notice').textContent = upper ? '별빛 답장으로 달려요!' : '하트 답장으로 달려요!';
     } else if (item.kind === 'evidence' && Math.abs(distance) < 26 && run.height < 54) {
       item.done = true;
       run.evidence++;
-      get('notice').textContent = '증거 확보! ' + run.evidence + '/3';
     } else if (item.kind === 'bonus' && Math.abs(distance) < 23
       && Math.abs(item.height-run.height-35) < 24) {
       item.done = true;
       run.bonus++;
       run.hearts += 5;
       run.energy = Math.min(8, run.energy+2);
-      get('notice').textContent = '옥상 보너스! 하트 +5';
     } else if (item.kind === 'heart') {
       const center = run.height + (run.slide ? 17 : 40);
       if ((Math.abs(distance) < 23 && Math.abs(item.height - center) < 31) || (run.magnet && distance < 125)) {
@@ -599,7 +632,6 @@ function update(dt) {
     } else if (item.kind === 'pad' && previousX < item.x && run.x >= item.x && run.height < 18) {
       item.done = true;
       run.magnet = Math.max(run.magnet, 2.3);
-      get('notice').textContent = '자석 발판! 주변 하트가 끌려와요.';
     } else if (['box','sign'].includes(obstacleKind(item.kind)) && Math.abs(distance) < 23) {
       const bottom = run.height;
       const top = bottom + (run.slide ? 69 : 99);
@@ -691,7 +723,49 @@ function drawCostumePose(sprite, width, poseIndex) {
   }
 }
 
+function drawRescue() {
+  const approach = Math.max(0, Math.min(1, (rescueTime - .55) / 1.55));
+  const reunited = approach === 1;
+  const reunionFloor = 317;
+  rect(0,0,720,438,'#332448');
+  rect(0,reunionFloor,720,121,'#292039');
+  rect(0,reunionFloor,720,3,'#eab4d9');
+  drawRescueArch(570,reunionFloor,Math.min(1,rescueTime / .65));
+  const heights = [132,126,120,118,116];
+  members.forEach(([id], index) => {
+    const {idle,skins} = sprites.get(id);
+    const portrait = skins[5] || idle;
+    if (!portrait.complete || !portrait.naturalWidth) return;
+    const height = heights[index];
+    const width = Math.round(portrait.naturalWidth*height/portrait.naturalHeight);
+    const target = 190 + index*82;
+    const x = id === 'moka' ? 570 + (target-570)*approach : target;
+    const step = id === 'moka' && approach > 0 && !reunited
+      ? Math.round(Math.abs(Math.sin(rescueTime*21))*6) : 0;
+    ctx.drawImage(portrait,Math.round(x-width/2),reunionFloor-height-step,width,height);
+  });
+  if (reunited) {
+    for (let index=0; index<9; index++) {
+      const rise = Math.min(46,(rescueTime-2.1)*55);
+      rect(168+index*48,reunionFloor-153-(index%3)*10-rise,4,4,'#ffe4a5');
+    }
+  }
+}
+
+function drawRescueArch(x, bottom, opening = 0) {
+  rect(x-49,bottom-164,98,164,'#8661a0');
+  rect(x-39,bottom-151,78,151,'#36264c');
+  const gateWidth = Math.round(39*(1-opening));
+  rect(x-39,bottom-151,gateWidth,151,'#50335f');
+  rect(x+39-gateWidth,bottom-151,gateWidth,151,'#50335f');
+  for (const offset of [-24,0,24]) rect(x+offset-2,bottom-161,4,4,'#ffdba0');
+}
+
 function draw() {
+  if (stage === 5 && (mode === 'rescue' || mode === 'clear')) {
+    drawRescue();
+    return;
+  }
   const sky = ctx.createLinearGradient(0,0,0,floor);
   const lateMagnetic = stage === 0 && run.x >= checkpointMarkers[1];
   const [skyTop,skyBottom,building,ground] = lateMagnetic
@@ -716,6 +790,8 @@ function draw() {
   rect(0,floor,720,60,ground);
   rect(0,floor,720,4,'#ffe0ce');
   for (let i=0;i<15;i++) rect(i*52-run.x%52,floor+21,30,3,'#76688b');
+  const gateX = playerX + rescueGate - run.x;
+  if (stage === 5 && gateX > -60 && gateX < 780) drawRescueArch(gateX,floor);
   for (const item of run.items) {
     const x = playerX + item.x - run.x;
     if (item.done || x+(item.width || 35) < 0 || x > 755) continue;
@@ -741,10 +817,6 @@ function draw() {
       rect(x-8,y-8,16,16,item.kind === 'fork' ? '#f8a9ce' : '#fff4df');
       ctx.fillStyle='#633c6a'; ctx.font='bold 13px system-ui';
       ctx.fillText(item.kind === 'fork' ? '♥' : '✦',x-5,y+5);
-    } else if (item.kind.startsWith('flip') && item.x-run.x > 210) {
-      rect(x-19,floor-13,38,10,'#f5dd8b');
-      ctx.fillStyle='#fff5da'; ctx.font='bold 15px system-ui';
-      ctx.fillText(obstacleKind(item.kind) === 'box' ? '점프' : '슬라이드',x-24,floor-21);
     } else if (obstacleKind(item.kind) === 'box') {
       rect(x-15,floor-40,30,40,'#924766');
       rect(x-11,floor-35,22,4,'#ffb8c7');
@@ -799,33 +871,9 @@ function draw() {
     else ctx.drawImage(sprite, -Math.round(width/2), -height, width, height);
     ctx.restore();
   }
-  if (stage === 3 && mode === 'playing') {
-    const nextCue = run.items.find(item => !item.done && !item.danced && item.x-run.x > 16
-      && item.x-run.x < 190 && ['box','sign'].includes(item.kind));
-    if (nextCue) {
-      const timing = nextCue.kind === 'box' ? 62 : 37;
-      const onBeat = Math.abs(nextCue.x-run.x-timing) < 25;
-      rect(273,73,174,32,onBeat ? '#e6acff' : '#5d4076');
-      ctx.fillStyle=onBeat ? '#291942' : '#fff';
-      ctx.font='bold 15px system-ui';
-      ctx.fillText(nextCue.kind === 'box' ? '♪ 점프 박자' : '♪ 슬라이드 박자',288,94);
-    }
-  }
-  if (stage === 5 && run.x >= 11750 && mode === 'playing') {
-    const ready = rescueWindow();
-    ctx.fillStyle = ready ? '#ffd68e' : '#d6b7ee';
-    ctx.beginPath(); ctx.arc(580,floor-136+Math.sin(run.time*9)*8,28,0,Math.PI*2); ctx.fill();
-    rect(380,68,273,36,ready ? '#ffd68e' : '#523052');
-    ctx.fillStyle = ready ? '#3e2644' : '#fff';
-    ctx.font = 'bold 16px system-ui';
-    ctx.fillText(ready ? '지금! 호루라기 C' : '스포트라이트가 겹치기를 기다려요',392,91);
-  }
-  if (run.beats.length) {
-    const active = Math.abs(run.beats[0]-run.time) < .23;
-    rect(248,45,224,26,active?'#ffd46f':'#3d315b');
-    ctx.fillStyle=active?'#251d35':'#fff';
-    ctx.font='bold 16px system-ui';
-    ctx.textAlign='center'; ctx.fillText(active?'지금! 점프 또는 슬라이드':'♪ 비트 스텝 · 타이밍 준비',360,64); ctx.textAlign='left';
+  if (run.beats.some(time => Math.abs(time-run.time) < .23)) {
+    ctx.strokeStyle = '#ffd46f';
+    ctx.beginPath(); ctx.arc(playerX,feet-46,43,0,Math.PI*2); ctx.stroke();
   }
   if (mode === 'clear' || mode === 'lost' || mode === 'paused') {
     rect(210,96,300,73,'#261f41');
@@ -833,35 +881,100 @@ function draw() {
     ctx.fillText({clear:stage === 5 ? '✦ 모카 구출 성공!' : '✦ 단서 발견!',lost:'다시 도전!',paused:'일시정지'}[mode],360,141);
     ctx.textAlign='left';
   }
-  if (stage === 5 && mode === 'clear') {
-    members.forEach(([id],index) => {
-      const {idle,skins} = sprites.get(id);
-      const portrait = skins[5] || idle;
-      if (!portrait.complete || !portrait.naturalWidth) return;
-      const width = Math.round(portrait.naturalWidth*108/portrait.naturalHeight);
-      ctx.drawImage(portrait,160+index*90-width/2,240,width,108);
-    });
-  }
 
 }
+
+// Original eight-beat loops, voiced separately for each stage.
+const scores = [
+  {bpm:116, voice:'triangle', lead:[76,0,79,81,79,76,0,72,74,0,77,79,77,74,72,0], bass:[48,48,45,43]},
+  {bpm:82, voice:'sine', lead:[72,76,79,0,81,79,76,0,71,74,77,0,79,77,74,0], bass:[48,45,43,43]},
+  {bpm:100, voice:'triangle', lead:[69,72,76,74,72,0,67,69,74,77,81,77,76,72,0,67], bass:[45,48,50,43]},
+  {bpm:126, voice:'square', lead:[72,0,72,75,0,77,75,0,70,0,70,74,0,77,74,0], bass:[48,48,46,43]},
+  {bpm:109, voice:'triangle', lead:[64,0,67,0,70,67,0,64,62,0,65,0,69,65,0,62], bass:[40,43,38,41]},
+  {bpm:132, voice:'triangle', lead:[69,69,0,72,74,0,72,76,77,76,0,74,72,0,71,67], bass:[45,45,41,43]},
+];
+let audioContext;
+let musicGain;
+let musicEnabled = true;
+let musicStage = -1;
+let nextNote = 0;
+let musicStep = 0;
+
+function startMusic() {
+  const Audio = window.AudioContext || window.webkitAudioContext;
+  if (!musicEnabled || !Audio) return;
+  if (!audioContext) {
+    audioContext = new Audio();
+    musicGain = audioContext.createGain();
+    musicGain.gain.value = .23;
+    musicGain.connect(audioContext.destination);
+  }
+  if (audioContext.state === 'suspended') audioContext.resume().catch(() => {});
+}
+
+function musicNote(pitch, voice, time, duration, level) {
+  const oscillator = audioContext.createOscillator();
+  const envelope = audioContext.createGain();
+  oscillator.type = voice;
+  oscillator.frequency.value = 440 * 2 ** ((pitch - 69)/12);
+  envelope.gain.setValueAtTime(.0001,time);
+  envelope.gain.exponentialRampToValueAtTime(level,time+.012);
+  envelope.gain.exponentialRampToValueAtTime(.0001,time+duration);
+  oscillator.connect(envelope);
+  envelope.connect(musicGain);
+  oscillator.start(time);
+  oscillator.stop(time+duration+.02);
+  oscillator.onended = () => { oscillator.disconnect(); envelope.disconnect(); };
+}
+
+function updateMusic() {
+  if (!audioContext || audioContext.state !== 'running') return;
+  const now = audioContext.currentTime;
+  const active = musicEnabled && !document.hidden && !get('play').hidden && mode !== 'paused';
+  const level = !active ? 0 : mode === 'playing' ? .27 : .13;
+  musicGain.gain.setTargetAtTime(level,now,.025);
+  if (!active) return;
+  const score = scores[stage];
+  const beat = 30 / score.bpm;
+  if (musicStage !== stage) {
+    musicStage = stage;
+    musicStep = 0;
+    nextNote = now + .035;
+  } else if (nextNote < now) nextNote = now + .035;
+  while (nextNote < now+.12) {
+    const pitch = score.lead[musicStep];
+    if (pitch) musicNote(pitch,score.voice,nextNote,beat*.85,score.voice === 'square' ? .13 : .24);
+    if (musicStep % 4 === 0) musicNote(score.bass[musicStep/4],'sine',nextNote,beat*2.7,.36);
+    if (score.bpm >= 109 && musicStep % 2 === 0) musicNote(32,'sine',nextNote,.085,.26);
+    musicStep = (musicStep+1) % score.lead.length;
+    nextNote += beat;
+  }
+}
+
+get('music').addEventListener('click', () => {
+  musicEnabled = !musicEnabled;
+  get('music').textContent = musicEnabled ? 'BGM 켜짐' : 'BGM 꺼짐';
+  get('music').setAttribute('aria-pressed',String(musicEnabled));
+  if (musicEnabled) startMusic();
+  updateMusic();
+});
 
 let last = 0;
 function frame(now) {
   const dt = last ? Math.min((now-last)/1000, .033) : 0;
   last = now;
   if (mode === 'playing') update(dt);
+  if (mode === 'rescue') {
+    rescueTime = Math.min(rescueDuration, rescueTime + dt);
+    if (rescueTime === rescueDuration) end(true);
+  }
+  updateMusic();
   get('hearts').textContent = '하트 ' + run.hearts;
   get('energy').textContent = '특수기 ' + run.energy + '/8';
   get('life').textContent = '체력 ' + run.hp;
-  const activeSections = stages[stage].sections;
-  const section = activeSections.reduce((index, entry, i) => run.x >= entry.from ? i : index, 0);
-  if (section !== run.section) {
-    run.section = section;
-    get('section').textContent = activeSections[section].title + ' · ' + activeSections[section].hint;
-  }
   const objective = stage === 5 ? '증거 ' + run.evidence + '/3' : stage === 3 ? '콤보 ' + run.combo : stage === 0 ? '보너스 별 ' + run.bonus : '';
   if (get('objective').textContent !== objective) get('objective').textContent = objective;
-  get('whistle').disabled = !rescueWindow() || mode !== 'playing';
+  get('whistle').disabled = mode !== 'playing';
   get('progress').textContent = Math.min(100, Math.floor(run.x/finish*100)) + '%';
   draw();
   requestAnimationFrame(frame);
