@@ -122,22 +122,57 @@ small { color:#dbc8e7 }
   .intro-stars i { transform:translate(var(--dx),var(--dy)) }
 }
 .title-screen {
-  min-height:clamp(390px,70vh,620px); display:grid; place-content:center; justify-items:center;
-  gap:14px; text-align:center; border:1px solid #6b557a; border-radius:18px;
-  background:radial-gradient(ellipse at 50% 40%,#302241 0%,#1c192e 62%,#141423 100%);
+  position:relative; isolation:isolate; overflow:hidden;
+  min-height:clamp(410px,72vh,610px);
+  display:grid; grid-template-rows:auto 1fr auto; justify-items:center;
+  text-align:center; border:2px solid #8a6da1; border-radius:14px;
+  background:linear-gradient(#141328 0%,#302344 48%,#755179 75%,#2a203b 75%);
 }
-.title-mark { color:#f4bcdb; font-size:36px; line-height:1 }
-.title-screen h1 { margin:0; font-size:clamp(31px,7vw,68px); line-height:1.12 }
-.title-screen button { background:#f6c1dc; color:#21182f; font-weight:800 }
+.title-heading { z-index:1; padding:24px 12px 0 }
+.title-heading h1 {
+  margin:6px 0 0; color:#fff3ed; font-size:clamp(28px,7vw,67px); line-height:1.14;
+  text-shadow:0 3px #824c73,0 6px #2b1c39;
+}
+.title-moon {
+  position:absolute; top:25%; right:15%; z-index:-2; width:clamp(50px,10vw,98px);
+  aspect-ratio:1; background:#ffdfaa; border-radius:50%; box-shadow:0 0 30px #e7a8a76b;
+}
+.title-skyline {
+  position:absolute; z-index:-1; inset:30% 0 24%; background:#372946;
+  clip-path:polygon(0 52%,9% 52%,9% 28%,17% 28%,17% 45%,25% 45%,25% 17%,34% 17%,34% 49%,44% 49%,44% 36%,57% 36%,57% 51%,64% 51%,64% 24%,72% 24%,72% 43%,83% 43%,83% 14%,93% 14%,93% 48%,100% 48%,100% 100%,0 100%);
+}
+.title-cast {
+  align-self:end; display:flex; justify-content:center; align-items:end; gap:clamp(8px,2.6vw,28px);
+  width:100%; padding:10px 16px 5px;
+}
+.title-cast img {
+  height:clamp(92px,22vh,184px); max-width:16%; object-fit:contain; object-position:center bottom;
+  image-rendering:pixelated; filter:drop-shadow(0 4px #24182f);
+}
+.title-cast img:nth-child(1) { height:clamp(102px,24vh,198px) }
+.title-menu {
+  width:100%; display:grid; justify-items:center; gap:2px; padding:14px 0 11px;
+  background:linear-gradient(#21182eef,#141323);
+}
+.title-menu button {
+  min-width:155px; padding:5px 12px; border-color:transparent; background:transparent; border-radius:5px;
+}
+.title-menu button[data-keyboard="true"] { color:#ffdf9f; background:#453047; outline:1px solid #916f8c }
+.title-menu button[data-keyboard="true"]::before { content:'▶ '; font-size:.7em }
+.title-menu small { margin-top:5px }
 </style>
 </head>
 <body>
 <main>
 <section id="title-screen" class="title-screen" aria-labelledby="title-name">
-<span class="title-mark" aria-hidden="true">✦</span>
-<div class="tag">ILLIT</div>
-<h1 id="title-name">두근두근 사건파일</h1>
-<button id="title-start">시작 · Enter</button>
+<div class="title-moon" aria-hidden="true"></div><div class="title-skyline" aria-hidden="true"></div>
+<div class="title-heading"><div class="tag">ILLIT</div><h1 id="title-name">두근두근 사건파일</h1></div>
+<div id="title-cast" class="title-cast" aria-hidden="true"></div>
+<div class="title-menu" aria-label="시작 메뉴">
+<button id="title-start">이야기 시작</button>
+<button id="title-stage">스테이지 선택</button>
+<small>↑↓ 선택 · Enter 결정</small>
+</div>
 </section>
 <section id="intro" class="intro" hidden aria-labelledby="intro-title">
 <div class="intro-city" aria-hidden="true"></div>
@@ -520,7 +555,28 @@ function startPrologue() {
   get('intro-continue').focus();
 }
 
+const titleMenu = [get('title-start'),get('title-stage')];
+let titleChoice = 0;
+
+function focusTitle() {
+  titleMenu.forEach((button,index) => button.setAttribute('data-keyboard',String(index === titleChoice)));
+  titleMenu[titleChoice].focus();
+}
+
 get('title-start').addEventListener('click',startPrologue);
+get('title-stage').addEventListener('click',() => {
+  titleScreen.hidden = true;
+  showPlay(false);
+  focusSelection();
+});
+
+for (const [id] of members) {
+  const portrait = document.createElement('img');
+  portrait.src = sprites.get(id).idle.src;
+  portrait.alt = '';
+  get('title-cast').append(portrait);
+}
+
 get('intro-moka').src = sprites.get('moka').idle.src;
 
 function leaveIntro() {
@@ -714,13 +770,23 @@ function input(action) {
 }
 
 window.addEventListener('keydown', event => {
-  if (!titleScreen.hidden || !intro.hidden) {
-    if (event.code === 'Enter' || event.code === 'NumpadEnter') {
+  const enter = event.code === 'Enter' || event.code === 'NumpadEnter';
+  if (!titleScreen.hidden) {
+    if (enter || event.code === 'ArrowUp' || event.code === 'ArrowDown') {
       event.preventDefault();
-      if (!event.repeat) {
-        if (titleScreen.hidden) leaveIntro();
-        else startPrologue();
+      if (event.repeat) return;
+      if (enter) (titleMenu.includes(event.target) ? event.target : titleMenu[titleChoice]).click();
+      else {
+        titleChoice = event.code === 'ArrowUp' ? 0 : 1;
+        focusTitle();
       }
+    }
+    return;
+  }
+  if (!intro.hidden) {
+    if (enter) {
+      event.preventDefault();
+      if (!event.repeat) leaveIntro();
     }
     return;
   }
@@ -1635,7 +1701,7 @@ function frame(now) {
   }
   requestAnimationFrame(frame);
 }
-get('title-start').focus();
+focusTitle();
 requestAnimationFrame(frame);
 </script>
 </body>
