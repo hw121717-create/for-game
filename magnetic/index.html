@@ -36,6 +36,7 @@ small { color:#dbc8e7 }
 <div class="controls" id="stage-list" aria-label="스테이지 선택"></div>
 <div id="actors" class="actors" aria-label="캐릭터 선택"></div>
 <p id="power"></p>
+<p id="skin-name"></p>
 <button id="enter">게임 화면으로 →</button>
 </section>
 <section id="play" hidden>
@@ -74,6 +75,9 @@ let run;
 const playerX = 126;
 const floor = 378;
 const spriteHeight = 108;
+const skinNames = ['SUPER REAL ME', 'SUPER REAL ME · 달빛', 'I’LL LIKE YOU · WITH',
+  'bomb · MAGIC BOMB', 'NOT CUTE ANYMORE · NOT MY NAME', 'BREAK EVEN · BURNING'];
+const moonlight = 'sepia(0.55) hue-rotate(172deg) saturate(1.65) brightness(0.96)';
 let stage = 0;
 let unlocked = 0;
 try {
@@ -111,7 +115,9 @@ for (const member of members) {
   }) || [];
   sprites.set(id, {idle:sprite, poses, skins});
   button.dataset.member = id;
-  button.append(sprite, name);
+  const thumbnail = new Image();
+  thumbnail.alt = '';
+  button.append(thumbnail, name);
   button.addEventListener('click', () => select(member));
   get('actors').append(button);
 }
@@ -265,8 +271,12 @@ function stageButtons() {
     button.disabled = stage === 5 && id === 'moka';
     button.title = button.disabled ? '모카는 이번 스테이지에서 구출하는 멤버예요.' : '';
     const {idle,skins} = sprites.get(id);
-    button.children[0].src = (skins[stage] || idle).src;
+    const thumbnail = button.children[0];
+    const source = (skins[stage] || idle).src;
+    if (thumbnail.src !== source) thumbnail.src = source;
+    thumbnail.style.filter = stage === 1 ? moonlight : '';
   }
+  get('skin-name').textContent = '스킨 · ' + skinNames[stage];
 }
 
 function chooseStage(index) {
@@ -574,6 +584,7 @@ function draw() {
     ctx.save();
     ctx.translate(playerX, Math.round(feet-Math.abs(gait)*3));
     ctx.rotate(gait*.055);
+    if (stage === 1) ctx.filter = moonlight;
     if (run.hurt && Math.floor(run.hurt*12)%2) ctx.globalAlpha = .35;
     ctx.drawImage(sprite, -Math.round(width/2), -height, width, height);
     ctx.restore();
