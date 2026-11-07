@@ -15,8 +15,8 @@ p { margin:8px 0 14px; color:#e6d6ed }
 button { border:1px solid #81759f; color:inherit; background:#2d2946; border-radius:10px; padding:8px 12px; font:inherit; cursor:pointer; touch-action:manipulation }
 button:disabled { opacity:.45; cursor:default }
 button:focus-visible, button[data-keyboard="true"] { outline:3px solid #ffe1a4; outline-offset:2px }
-button[aria-pressed=true],#enter { background:#ffbfdc; color:#2c1933; border-color:#ffbfdc; font-weight:800 }
-.actors { margin-top:14px }
+button[aria-pressed=true]:not(#music),#enter { background:#ffbfdc; color:#2c1933; border-color:#ffbfdc; font-weight:800 }
+.actors { margin-top:12px }
 .actors button { flex:1; min-width:54px; padding:4px }
 .actors img { display:block; margin:auto; height:clamp(76px,14vw,142px); image-rendering:pixelated }
 #power { min-height:1.5em; font-size:.9rem }
@@ -39,13 +39,27 @@ main:has(#play:not([hidden])) > .tag { display:none }
 }
 .hud span { white-space:nowrap; padding:.35em .55em; border-radius:.6em; background:#261f41; color:#fff8ec }
 .hud span:empty { display:none }
-#progress { margin-left:auto }
+
 #notice { margin:5px 0; line-height:1.3 }
 .play-actions { display:flex; gap:8px }
-.selection-help { margin-top:8px }
+.selection-help { margin-top:12px }
+.selection-title { display:flex; align-items:baseline; flex-wrap:wrap; gap:6px 12px; margin:12px 0 }
+.selection-title h2 { margin:0; font-size:clamp(16px,3vw,21px) }
+.selection-title span { color:#dbc8e7; font-size:.8rem }
+.selection-footer { display:flex; justify-content:space-between; align-items:center; gap:8px; margin-top:10px }
+.selection-footer p { margin:0; min-height:0 }
+#enter { white-space:nowrap }
+.hud .hud-progress { position:absolute; inset:auto 0 -6px; width:100%; height:3px }
+.hud meter,.hud progress { accent-color:#ffe2a2 }
+.hud meter { width:clamp(42px,10cqw,82px); height:.65em }
+.hud span:last-of-type { margin-left:auto }
+.play-header h1 { order:-1; margin-right:auto }
+.play-header button { padding:5px 7px }
+#notice:empty,.play-actions:not(:has(button:not([hidden]))) { display:none }
+
 canvas { width:100%; height:auto; display:block; border:2px solid #8777ac; border-radius:14px; background:#e5bbe4; image-rendering:pixelated }
 .controls { margin-top:12px }
-.controls button { flex:1; min-width:76px }
+.controls button { min-width:42px; padding:7px 10px }
 #notice { font-weight:650 }
 small { color:#dbc8e7 }
 [hidden] { display:none !important }
@@ -125,25 +139,26 @@ small { color:#dbc8e7 }
 </section>
 <section id="selection" hidden>
 <div class="tag">ILLIT · 두근두근 사건파일</div>
-<h1>캐릭터와 스테이지 선택</h1>
+<h1>누구와 달릴까요?</h1>
 <div class="controls" id="stage-list" aria-label="스테이지 선택"></div>
+<div class="selection-title"><h2 id="selected-stage"></h2><span id="skin-name"></span></div>
 <div id="actors" class="actors" aria-label="캐릭터 선택"></div>
-<p id="power"></p>
-<p id="skin-name"></p>
-<button id="enter">게임 시작 →</button>
+<div class="selection-footer"><p id="power"></p><button id="enter">시작 →</button></div>
 <div class="selection-help">
-<small>↑↓ 줄 이동 · ←→ 선택 · 시작 버튼에서 →<br>달리기 중 ↑ 점프 · ↓ 슬라이드 · → 특수기</small>
+<small>↑↓ 줄 이동 · ←→ 선택 / 진행<br>달리기 · ↑ 점프 · ↓ 슬라이드 · → 특수기</small>
 </div>
 </section>
 <section id="play" hidden>
 <header class="play-header">
-<button id="back">캐릭터 선택</button>
-<button id="music" aria-pressed="true">BGM 켜짐</button>
+<button id="back">← 선택</button>
+<button id="music" aria-pressed="true">소리 켜짐</button>
 <h1 id="stage-title"></h1>
 </header>
 <div class="playfield">
 <canvas id="scene" width="720" height="438" tabindex="-1" aria-label="두근두근 사건파일 자동 달리기 게임"></canvas>
-<div id="hud" class="hud" aria-label="게임 상태"><span id="hearts">하트 0</span><span id="energy">특수기 0/8</span><span id="life">체력 3</span><span id="objective"></span><span id="progress">0%</span></div>
+<div id="hud" class="hud" aria-label="게임 상태"><span id="hearts">♥ 0</span><span id="life">체력 3</span>
+<span>✦ <meter id="energy" min="0" max="8" value="0" aria-label="특수기 충전"></meter></span><span id="objective"></span>
+<progress id="progress" class="hud-progress" max="100" value="0" aria-label="스테이지 진행률"></progress></div>
 <div id="dialogue" class="story" role="region" aria-label="스토리 대화" hidden>
 <img id="speaker-image" alt=""><strong id="speaker"></strong><p id="line" aria-live="polite"></p>
 <button id="advance">계속 →</button>
@@ -357,7 +372,7 @@ function course() {
 }
 
 function reset(saved = null) {
-  run = {x:saved?.x || 0, height:0, vy:0, jumps:0, hearts:saved?.hearts || 0, energy:saved?.energy || 0, hp:3, slide:0, hurt:0,
+  run = {effects:[], slideBuffer:0, lastChime:-1, x:saved?.x || 0, height:0, vy:0, jumps:0, hearts:saved?.hearts || 0, energy:saved?.energy || 0, hp:3, slide:0, hurt:0,
     magnet:0, dash:0, cat:false, dashHits:0, streak:0, bestStreak:0, time:0, beats:[], platform:0, land:0, standing:null, route:null, combo:0, bestCombo:0, evidence:0, bonus:saved?.bonus || 0, items:course()};
   if (saved) for (const item of run.items) item.done = item.x <= saved.x;
 }
@@ -366,7 +381,8 @@ reset();
 const stageNames = ['자석 골목','자정의 옥상','보내지 못한 편지','고양이 댄스홀','뒤집힌 쇼윈도','모카 구출 작전'];
 const stageMenu = stageNames.map((name,index) => {
   const button = document.createElement('button');
-  button.textContent = String(index+1).padStart(2,'0') + ' ' + name;
+  button.textContent = String(index+1).padStart(2,'0');
+  button.setAttribute('aria-label', (index+1)+'탄 '+name);
   button.addEventListener('click', () => chooseStage(index));
   get('stage-list').append(button);
   return button;
@@ -376,7 +392,7 @@ function stageButtons() {
   stageMenu.forEach((button,index) => {
     button.setAttribute('aria-pressed', String(index === stage));
     button.disabled = index > unlocked;
-    button.title = button.disabled ? '앞 스테이지를 클리어하면 열려요.' : '';
+    button.title = stageNames[index] + (button.disabled ? ' · 잠김' : '');
   });
   for (const button of get('actors').children) {
     const id = button.dataset.member;
@@ -388,7 +404,8 @@ function stageButtons() {
     if (thumbnail.src !== source) thumbnail.src = source;
     thumbnail.style.filter = stage === 1 ? moonlight : '';
   }
-  get('skin-name').textContent = '스킨 · ' + skinNames[stage];
+  get('selected-stage').textContent = stageNames[stage];
+  get('skin-name').textContent = skinNames[stage];
 }
 
 function chooseStage(index) {
@@ -541,7 +558,23 @@ function start() {
   get('notice').textContent = '';
 }
 
+function gameSound(note, endNote, duration, level) {
+  if (musicEnabled && audioContext?.state === 'running') {
+    musicNote(note,'sine',audioContext.currentTime+.012,duration,level,endNote);
+  }
+}
+
+function addSparks(x, height, color, count) {
+  const y = Math.max(34,floor-height);
+  for (let index=0; index<count; index++) {
+    const spread = index-(count-1)/2;
+    run.effects.push({x,y,vx:spread*30,vy:-56-Math.abs(spread)*10,color,life:.28+index*.022});
+  }
+}
+
 function jump(force = 460) {
+  addSparks(playerX,run.height,run.jumps ? '#d7f8ff' : '#ffe0b7',run.jumps ? 4 : 3);
+  gameSound(run.jumps ? 67 : 60,run.jumps ? 76 : 69,.11,.16);
   run.standing = null;
   run.slide = 0;
   run.cat = false;
@@ -580,6 +613,8 @@ function input(action) {
   if (action === 'skill') {
     if (run.energy < 8) return;
     run.energy -= 8;
+    addSparks(playerX,run.height+62,'#ffe0a6',8);
+    gameSound(72,84,.2,.23);
     switch (selected[0]) {
       case 'yunah': run.dash = 2.2; run.dashHits = 2; break;
       case 'minju': run.platform = 1.4; run.jumps = 0; jump(555); break;
@@ -596,7 +631,10 @@ function input(action) {
     run.energy = Math.min(8,run.energy+1);
   }
   if (action === 'jump' && run.jumps < 2) jump();
-  if (action === 'slide' && (run.height === 0 || run.standing)) run.slide = .56;
+  if (action === 'slide') {
+    if (run.height === 0 || run.standing) run.slide = Math.max(run.slide,.56);
+    else run.slideBuffer = .14;
+  }
 }
 
 window.addEventListener('keydown', event => {
@@ -686,6 +724,14 @@ function update(dt) {
   const previousX = run.x;
   run.x += dt * stages[stage].pace * (sprint ? 1.25 : 1);
   run.time += dt;
+  run.slideBuffer = Math.max(0,run.slideBuffer-dt);
+  for (const effect of run.effects) {
+    effect.life -= dt;
+    effect.x += effect.vx*dt;
+    effect.y += effect.vy*dt;
+    effect.vy += 130*dt;
+  }
+  run.effects = run.effects.filter(effect => effect.life > 0);
   for (const timer of ['slide','hurt','magnet','dash','platform','land']) run[timer] = Math.max(0, run[timer] - dt);
   run.beats = run.beats.filter(time => time > run.time - .28);
   if (run.cat && previousSlide && !run.slide) jump(480);
@@ -724,6 +770,13 @@ function update(dt) {
       run.land = .12;
     }
   }
+  if (run.land === .12) {
+    addSparks(playerX,run.height,'#ffe0b7',3);
+    if (run.slideBuffer) {
+      run.slide = .56;
+      run.slideBuffer = 0;
+    }
+  }
   for (const item of run.items) {
     const distance = item.x - run.x;
     if (item.kind === 'ledge' || item.kind === 'gap' || item.done || distance > 125 || distance < -32) continue;
@@ -757,6 +810,11 @@ function update(dt) {
         item.done = true;
         run.hearts++;
         run.energy = Math.min(8, run.energy + 1);
+        addSparks(playerX+Math.max(-23,Math.min(distance,28)),item.height,'#ffd99f',2);
+        if (run.time-run.lastChime > .085) {
+          gameSound(76+run.hearts%4*2,82+run.hearts%4*2,.09,.12);
+          run.lastChime = run.time;
+        }
       }
     } else if (item.kind === 'pad' && previousX < item.x && run.x >= item.x && run.height < 18) {
       item.done = true;
@@ -776,6 +834,8 @@ function update(dt) {
       } else {
         item.done = true;
         run.hp--;
+        gameSound(54,43,.15,.23);
+        addSparks(playerX,run.height+45,'#ff9aaa',6);
         run.streak = 0;
         run.combo = 0;
         run.hurt = 1;
@@ -1129,6 +1189,11 @@ function draw() {
     ctx.drawImage(sprite, -Math.round(width/2), -height, width, height);
     ctx.restore();
   }
+  for (const effect of run.effects) {
+    ctx.globalAlpha = Math.min(1,effect.life*5);
+    rect(effect.x,effect.y,3,3,effect.color);
+  }
+  ctx.globalAlpha = 1;
   if (run.spark > run.time) {
     for (let i=0; i<5; i++) {
       const angle = i*Math.PI*2/5;
@@ -1250,7 +1315,7 @@ function updateMusic() {
 
 get('music').addEventListener('click', () => {
   musicEnabled = !musicEnabled;
-  get('music').textContent = musicEnabled ? 'BGM 켜짐' : 'BGM 꺼짐';
+  get('music').textContent = musicEnabled ? '소리 켜짐' : '소리 꺼짐';
   get('music').setAttribute('aria-pressed',String(musicEnabled));
   if (musicEnabled) startMusic();
   updateMusic();
@@ -1267,14 +1332,16 @@ function frame(now) {
   }
   if (mode === 'ending') endingTime = Math.min(4.2,endingTime+dt);
   updateMusic();
-  get('hud').hidden = mode === 'ending';
-  get('hearts').textContent = '하트 ' + run.hearts;
-  get('energy').textContent = '특수기 ' + run.energy + '/8';
-  get('life').textContent = '체력 ' + run.hp;
-  const objective = stage === 5 ? '증거 ' + run.evidence + '/3' : stage === 0 ? '보너스 별 ' + run.bonus : '';
-  if (get('objective').textContent !== objective) get('objective').textContent = objective;
-  get('progress').textContent = Math.min(100, Math.floor(run.x/finish*100)) + '%';
-  draw();
+  if (!get('play').hidden) {
+    get('hud').hidden = mode === 'ending';
+    get('hearts').textContent = '♥ ' + run.hearts;
+    get('energy').value = run.energy;
+    get('life').textContent = '체력 ' + run.hp;
+    const objective = stage === 5 ? '증거 ' + run.evidence + '/3' : '';
+    if (get('objective').textContent !== objective) get('objective').textContent = objective;
+    get('progress').value = Math.min(100,Math.floor(run.x/finish*100));
+    draw();
+  }
   requestAnimationFrame(frame);
 }
 get('intro-continue').focus();
