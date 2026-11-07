@@ -78,7 +78,7 @@ const spriteHeight = 132;
 const motionHeight = 132;
 const skinNames = ['SUPER REAL ME', 'SUPER REAL ME · 달빛', 'I’LL LIKE YOU · WITH',
   'bomb · MAGIC BOMB', 'NOT CUTE ANYMORE · NOT MY NAME', 'BREAK EVEN · BURNING'];
-const moonlight = 'sepia(0.55) hue-rotate(172deg) saturate(1.65) brightness(0.96)';
+const moonlight = 'drop-shadow(0 0 5px rgba(225,207,255,0.85))';
 let stage = 0;
 let unlocked = 0;
 try {
@@ -183,7 +183,7 @@ const stages = [
   {title:'Magnetic ✦ 자석 골목', story:'수상한 메시지를 따라 첫 단서를 찾아요.',
     palette:['#322c59','#efacbb','#54476e','#35304d'], sections, obstacles:encounters, pace:240},
   {title:'Midnight Fiction ✦ 자정의 옥상', story:'달빛 발판을 따라 옥상에 숨겨진 편지를 찾아요.',
-    palette:['#101837','#676394','#353f68','#232a4e'], sections:rooftopSections, obstacles:rooftopEncounters, pace:240},
+    palette:['#29264c','#9480ae','#4e4b75','#353154'], sections:rooftopSections, obstacles:rooftopEncounters, pace:240},
   chapter('Cherish ✦ 보내지 못한 편지','답장을 고르고 말풍선을 따라 달려요.',
     ['#563255','#ffbbce','#915f7e','#533552'], [
     [0,'01 · 편지 도착','말풍선을 따라 점프와 슬라이드를 번갈아 써요.'],
@@ -626,7 +626,13 @@ function draw() {
     ctx.save();
     ctx.translate(playerX, Math.round(feet-Math.abs(gait)*3));
     ctx.rotate(gait*.055);
-    if (stage === 1) ctx.filter = moonlight;
+    if (stage === 1) {
+      const twinkle = Math.sin(run.time * 4) * 4;
+      rect(-width/2-9, -height*.66+twinkle, 3, 9, '#ffedc0');
+      rect(-width/2-12, -height*.66+3+twinkle, 9, 3, '#ffedc0');
+      rect(width/2+8, -height*.86-twinkle, 3, 3, '#f6deff');
+      ctx.filter = moonlight;
+    }
     if (run.hurt && Math.floor(run.hurt*12)%2) ctx.globalAlpha = .35;
     ctx.drawImage(sprite, -Math.round(width/2), -height, width, height);
     ctx.restore();
