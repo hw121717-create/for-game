@@ -64,7 +64,7 @@ small { color:#dbc8e7 }
 </section>
 <section id="play" hidden>
 <header class="play-header">
-<button id="back">← 캐릭터 선택</button>
+<button id="back">캐릭터 선택</button>
 <h1 id="stage-title"></h1>
 </header>
 <div class="playfield">
@@ -74,9 +74,9 @@ small { color:#dbc8e7 }
 <p id="section" class="tag"></p>
 <p id="notice" aria-live="polite"></p>
 <div class="play-actions">
-<button id="restart" hidden>처음부터</button><button id="next" hidden>다음 스테이지 →</button><button id="whistle" hidden>호루라기 C</button>
+<button id="restart" hidden>처음부터</button><button id="next" hidden>다음 스테이지</button><button id="whistle" hidden>호루라기 C</button>
 </div>
-<small>↑ / Space 점프·이단 점프 · ↓ 슬라이드 · X 특수기 · Esc 일시정지</small>
+<small>위 방향키 / Space 점프·이단 점프 · 아래 방향키 슬라이드 · X 특수기 · Esc 일시정지</small>
 <small class="touch-help">화면 탭으로 점프 · 아래로 밀어 슬라이드 · 옆으로 밀어 특수기</small>
 </section>
 </main>
@@ -114,7 +114,7 @@ try {
     Number.isInteger(saved) ? Math.max(0, Math.min(5, saved)) : 0);
 } catch {}
 const standardFinish = 14400;
-const magneticFinish = 43200;
+const magneticFinish = 21600;
 let finish = magneticFinish;
 let checkpoint = null;
 
@@ -155,34 +155,29 @@ for (const member of members) {
 select(selected);
 
 const sections = [
-  {from:0, title:'01 · 골목 입구', hint:'하트를 따라 달리고, 상자는 점프로 넘어가요.'},
-  {from:4900, title:'01 · 낮은 간판', hint:'간판 아래로 미끄러지고, 바닥이 끊긴 곳은 하트 곡선을 따라 뛰어요.'},
-  {from:9800, title:'01 · 교차로', hint:'상자 다음에 간판이 나오면 착지한 뒤 슬라이드하세요.'},
-  {from:14400, title:'02 · 자석 거리', hint:'민트색 발판을 밟고 하트가 끌려오는 길을 따라가요.'},
-  {from:19200, title:'02 · 옥상 보너스', hint:'이단 점프로 분홍 발판에 올라 보너스 별을 모아요. 아래 길로도 갈 수 있어요.'},
-  {from:24000, title:'02 · 자석 교차로', hint:'낮은 길에는 발판, 높은 길에는 하트가 있어요.'},
-  {from:28800, title:'03 · 뒷골목 추격', hint:'장애물 사이가 좁아져요. 다음 표식을 미리 보세요.'},
-  {from:33600, title:'03 · 네온 골목', hint:'끊긴 길을 건너거나 위쪽 발판에 착지해 별을 챙겨요.'},
-  {from:38400, title:'03 · 첫 단서', hint:'마지막 간판을 지나 골목 끝의 단서를 찾아요.'},
+  {from:0, title:'01 · 골목 입구', hint:'하트가 그리는 곡선을 따라 상자와 끊긴 길을 넘어요.'},
+  {from:3600, title:'01 · 시장 골목', hint:'낮은 간판 밑 하트를 따라 슬라이드하세요.'},
+  {from:7200, title:'02 · 자석 거리', hint:'민트색 발판을 밟으면 주변 하트가 끌려와요.'},
+  {from:10300, title:'02 · 옥상 보너스', hint:'이단 점프로 분홍 발판의 별을 챙기거나 아래 길로 달려요.'},
+  {from:14400, title:'03 · 네온 골목', hint:'상자를 넘은 뒤 착지해서 다음 간판 밑으로 빠져나가요.'},
+  {from:18300, title:'03 · 첫 단서', hint:'끊긴 골목을 건너 마지막 단서를 찾아요.'},
 ];
 
 const encounters = [
-  [880,'box'], [2020,'box'], [3080,'box'], [4220,'box',true],
-  [5450,'sign'], [6550,'sign'], [8790,'sign'],
-  [10050,'box'], [10650,'sign'], [12200,'sign'], [13520,'box'],
-  [14930,'pad'], [15700,'box',true], [16580,'sign'], 
-  [19610,'box',true], [20430,'sign'], [22100,'pad'], 
-  [24410,'pad'], [25120,'sign'], [25830,'box',true], [26510,'sign'], [28030,'box'],
-  [29290,'box'], [29730,'sign'], [31060,'sign'], [31740,'pad'],
-  [32920,'sign'], [33840,'box'], [34280,'sign'], [35440,'sign'], [36080,'pad'], [36720,'box'], [37160,'sign'], 
-  [38780,'sign'], [39240,'box'], [39700,'sign'], [40800,'sign'],
-  [42020,'box'], [42460,'sign'],
+  [590,'box'], [1070,'box'], [1550,'sign'], [2470,'box'], [2940,'sign'],
+  [3730,'sign'], [4200,'box'], [4620,'sign'], [5490,'box'], [5910,'sign'],
+  [6330,'box',true], [6780,'sign'],
+  [7540,'box'], [8000,'sign'], [9180,'box',true], [9590,'sign'], [10010,'box'],
+  [10900,'box',true], [11360,'sign'], [11820,'box'], [12710,'sign'], [13180,'box'], [13610,'sign'],
+  [14570,'box'], [14960,'sign'], [15340,'box'], [16240,'sign'], [16620,'box'],
+  [17010,'sign'], [17830,'box'], [18220,'sign'],
+  [19110,'box'], [19480,'sign'], [19860,'box'], [20740,'sign'], [21150,'box'],
 ];
-const checkpointMarkers = [14400,28800];
-const gaps = [[7670,90],[11550,104],[18230,118],[22920,120],[30380,126],[34960,136],[37800,142],[40340,150]];
-const bonusLedges = [[21240,112,350],[21560,150,280],[34900,114,230],[35160,150,210],
-  [37760,116,225],[38030,151,240]];
-const sweepPads = [17440,27240,41370];
+const checkpointMarkers = [7200,14400];
+const gaps = [[1990,90],[5070,104],[12280,118],[15790,126],[18660,136],[20270,148]];
+const bonusLedges = [[10500,112,350],[10820,150,280],[15690,114,230],[15950,150,210],
+  [18570,116,225],[18840,151,240]];
+const sweepPads = [8480,14000,17420];
 
 const rooftopSections = [
   {from:0, title:'01 · 달빛 연습', hint:'하늘색으로 빛나는 발판에 내려앉아 보세요.'},
@@ -640,7 +635,7 @@ function rect(x,y,w,h,color) {
 
 function draw() {
   const sky = ctx.createLinearGradient(0,0,0,floor);
-  const lateMagnetic = stage === 0 && run.x >= 28800;
+  const lateMagnetic = stage === 0 && run.x >= checkpointMarkers[1];
   const [skyTop,skyBottom,building,ground] = lateMagnetic
     ? ['#262044','#a0659b','#463666','#2c2648'] : stages[stage].palette;
   sky.addColorStop(0,skyTop);
@@ -670,8 +665,6 @@ function draw() {
       rect(x,floor,item.width,60,'#17152a');
       rect(x-4,floor,4,15,'#ffca9e');
       rect(x+item.width,floor,4,15,'#ffca9e');
-      ctx.fillStyle='#ffefc4'; ctx.font='bold 17px system-ui';
-      ctx.fillText('↑',x-12,floor-12);
     } else if (item.kind === 'bonus') {
       ctx.fillStyle='#fff5a8'; ctx.font='bold 22px system-ui';
       ctx.fillText('✦',x-9,floor-item.height+5);
@@ -689,18 +682,18 @@ function draw() {
       const y = floor-item.height;
       rect(x-8,y-8,16,16,item.kind === 'fork' ? '#f8a9ce' : '#fff4df');
       ctx.fillStyle='#633c6a'; ctx.font='bold 13px system-ui';
-      ctx.fillText(item.kind === 'fork' ? '↑' : '✦',x-5,y+5);
+      ctx.fillText(item.kind === 'fork' ? '♥' : '✦',x-5,y+5);
     } else if (item.kind.startsWith('flip') && item.x-run.x > 210) {
       rect(x-19,floor-13,38,10,'#f5dd8b');
-      ctx.fillStyle='#fff5da'; ctx.font='bold 23px system-ui';
-      ctx.fillText(obstacleKind(item.kind) === 'box' ? '↑' : '↓',x-8,floor-21);
+      ctx.fillStyle='#fff5da'; ctx.font='bold 15px system-ui';
+      ctx.fillText(obstacleKind(item.kind) === 'box' ? '점프' : '슬라이드',x-24,floor-21);
     } else if (obstacleKind(item.kind) === 'box') {
       rect(x-15,floor-40,30,40,'#924766');
       rect(x-11,floor-35,22,4,'#ffb8c7');
     } else if (obstacleKind(item.kind) === 'sign') {
       rect(x-14,floor-109,28,35,'#5e396e');
       rect(x-11,floor-105,22,3,'#ffcfe0');
-      ctx.fillStyle='#fff4ed'; ctx.font='bold 17px system-ui'; ctx.fillText('↓',x-7,floor-82);
+      rect(x-9,floor-82,18,3,'#e4a4cc');
     } else if (item.kind === 'pad') {
       rect(x-19,floor-7,38,7,'#a3fff0');
       rect(x-14,floor-11,28,4,'#4ccbbf');
@@ -755,7 +748,7 @@ function draw() {
       rect(273,73,174,32,onBeat ? '#e6acff' : '#5d4076');
       ctx.fillStyle=onBeat ? '#291942' : '#fff';
       ctx.font='bold 15px system-ui';
-      ctx.fillText(nextCue.kind === 'box' ? '♪ 점프 박자 ↑' : '♪ 슬라이드 박자 ↓',288,94);
+      ctx.fillText(nextCue.kind === 'box' ? '♪ 점프 박자' : '♪ 슬라이드 박자',288,94);
     }
   }
   if (stage === 5 && run.x >= 11750 && mode === 'playing') {
