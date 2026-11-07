@@ -121,11 +121,25 @@ small { color:#dbc8e7 }
   .intro * { animation:none !important }
   .intro-stars i { transform:translate(var(--dx),var(--dy)) }
 }
+.title-screen {
+  min-height:clamp(390px,70vh,620px); display:grid; place-content:center; justify-items:center;
+  gap:14px; text-align:center; border:1px solid #6b557a; border-radius:18px;
+  background:radial-gradient(ellipse at 50% 40%,#302241 0%,#1c192e 62%,#141423 100%);
+}
+.title-mark { color:#f4bcdb; font-size:36px; line-height:1 }
+.title-screen h1 { margin:0; font-size:clamp(31px,7vw,68px); line-height:1.12 }
+.title-screen button { background:#f6c1dc; color:#21182f; font-weight:800 }
 </style>
 </head>
 <body>
 <main>
-<section id="intro" class="intro" aria-labelledby="intro-title">
+<section id="title-screen" class="title-screen" aria-labelledby="title-name">
+<span class="title-mark" aria-hidden="true">✦</span>
+<div class="tag">ILLIT</div>
+<h1 id="title-name">두근두근 사건파일</h1>
+<button id="title-start">시작 · Enter</button>
+</section>
+<section id="intro" class="intro" hidden aria-labelledby="intro-title">
 <div class="intro-city" aria-hidden="true"></div>
 <img id="intro-moka" class="intro-moka" alt="">
 <div class="intro-stars" aria-hidden="true"><i>✦</i><i>✦</i><i>✦</i><i>✦</i><i>✦</i></div>
@@ -497,7 +511,16 @@ let dialogue = null;
 let selectionRow = 1;
 chooseStage(0);
 
+const titleScreen = get('title-screen');
 const intro = get('intro');
+
+function startPrologue() {
+  titleScreen.hidden = true;
+  intro.hidden = false;
+  get('intro-continue').focus();
+}
+
+get('title-start').addEventListener('click',startPrologue);
 get('intro-moka').src = sprites.get('moka').idle.src;
 
 function leaveIntro() {
@@ -691,10 +714,13 @@ function input(action) {
 }
 
 window.addEventListener('keydown', event => {
-  if (!intro.hidden) {
+  if (!titleScreen.hidden || !intro.hidden) {
     if (event.code === 'Enter' || event.code === 'NumpadEnter') {
       event.preventDefault();
-      if (!event.repeat) leaveIntro();
+      if (!event.repeat) {
+        if (titleScreen.hidden) leaveIntro();
+        else startPrologue();
+      }
     }
     return;
   }
@@ -948,15 +974,15 @@ function rect(x,y,w,h,color) {
 }
 
 const scenery = [
-  {wall:'#504066',shade:'#392d55',light:'#f1a9d3',trim:'#82efe4',icon:'U'},
-  {wall:'#383b68',shade:'#292b52',light:'#a7b9ed',trim:'#d5e7ff',icon:'✦'},
-  {wall:'#8a5373',shade:'#653953',light:'#ffd1c6',trim:'#fff2d2',icon:'♥'},
-  {wall:'#47366c',shade:'#28234d',light:'#c288eb',trim:'#f5afd9',icon:'♪'},
-  {wall:'#61516c',shade:'#382e52',light:'#e8acba',trim:'#c1e7ed',icon:'◇'},
-  {wall:'#543a63',shade:'#332444',light:'#d2a2ec',trim:'#ffd992',icon:'✧'},
-  {wall:'#70a49a',shade:'#375c61',light:'#ffc578',trim:'#fff0ac',icon:'✿'},
-  {wall:'#73709e',shade:'#302949',light:'#b9a7e0',trim:'#efdfb2',icon:'◷'},
-  {wall:'#925e70',shade:'#553345',light:'#e4a5a1',trim:'#ffdbb1',icon:'♡'},
+  {wall:'#504066',shade:'#392d55',light:'#f1a9d3',trim:'#82efe4'},
+  {wall:'#383b68',shade:'#292b52',light:'#a7b9ed',trim:'#d5e7ff'},
+  {wall:'#8a5373',shade:'#653953',light:'#ffd1c6',trim:'#fff2d2'},
+  {wall:'#47366c',shade:'#28234d',light:'#c288eb',trim:'#f5afd9'},
+  {wall:'#61516c',shade:'#382e52',light:'#e8acba',trim:'#c1e7ed'},
+  {wall:'#543a63',shade:'#332444',light:'#d2a2ec',trim:'#ffd992'},
+  {wall:'#70a49a',shade:'#375c61',light:'#ffc578',trim:'#fff0ac'},
+  {wall:'#73709e',shade:'#302949',light:'#b9a7e0',trim:'#efdfb2'},
+  {wall:'#925e70',shade:'#553345',light:'#e4a5a1',trim:'#ffdbb1'},
 ];
 
 function drawDistrict() {
@@ -1053,22 +1079,83 @@ function drawBonusDistrict(art) {
   }
 }
 
-function drawObstacle(x, kind) {
-  const {wall,shade,light,trim,icon} = scenery[stage];
-  const groundBox = kind === 'box';
-  const y = floor-(groundBox ? 40 : 109);
-  const height = groundBox ? 40 : 35;
-  if (!groundBox) {
-    rect(x-11,y-23,3,23,light);
-    rect(x+8,y-23,3,23,light);
+// Each stamp is drawn on a whole-pixel grid so it stays crisp at every screen size.
+const landscapeStamps = [
+  ['....33....','...3333...','....22....','..222222..','.22111122.','2212112122','2211111122','2212332122','2212332122','2222222222'],
+  ['....3.....','..33333...','....3.....','....2.....','...222....','..21112...','.2111112..','222222222.','211221112.','222222222.'],
+  ['....33....','...3333...','..222222..','.22111122.','2213333122','2213113122','2213333122','2211211122','2211211122','2222222222'],
+  ['...2222...','..233332..','..231132..','..233332..','..222222..','..231132..','..211112..','..211112..','..233332..','..222222..'],
+  ['..222222..','.23333332.','2311111132','2313131132','2313311132','2313111132','2311111132','2333333332','.22222222.','...2222...'],
+  ['....22....','...2222...','..223322..','.22311322.','2231111322','2231111322','2231111322','2231111322','2231111322','2221111222'],
+  ['....22....','...2332...','..233332..','.23333332.','..233332..','....22....','..3.22.3..','..332233..','...3223...','....22....'],
+  ['....22....','...2332...','..233332..','..231132..','..231332..','..231132..','..233332..','..211112..','..213312..','..222222..'],
+  ['..333333..','.33333333.','2323232323','2323232323','2222222222','2112221122','2112321122','2112221122','2222222222','2222222222'],
+];
+const obstacleMarks = [
+  ['3...3','3...3','3...3','33333','.333.'],
+  ['..3..','..3..','33333','..3..','..3..'],
+  ['33333','32.23','3.3.3','3...3','33333'],
+  ['.333.','.3.3.','.3.3.','33.33','33.33'],
+  ['..3..','.323.','32.23','.323.','..3..'],
+  ['..3..','.333.','33333','3.3.3','33333'],
+  ['.3.3.','3.3.3','.333.','3.3.3','.3.3.'],
+  ['.333.','3.3.3','3.333','3...3','.333.'],
+  ['33333','3.3.3','33333','3.3.3','33333'],
+];
+
+function stamp(rows,x,y,unit,colors) {
+  for (const [row,line] of rows.entries()) {
+    for (let col=0; col<line.length; col++) {
+      const color = colors[line[col]];
+      if (color) rect(x+col*unit,y+row*unit,unit,unit,color);
+    }
   }
-  rect(x-15,y,30,height,trim);
-  rect(x-12,y+3,24,height-6,shade);
-  rect(x-9,y+5,18,3,light);
-  rect(x-12,y+height-7,24,4,wall);
-  ctx.font = 'bold 16px system-ui';
-  ctx.fillStyle = trim;
-  ctx.fillText(icon,x-7,y+height-10);
+}
+
+function drawStreetDetails() {
+  const art = scenery[stage];
+  const travel = run.x*.42;
+  const artRows = landscapeStamps[stage];
+  const palette = {'1':art.shade,'2':art.wall,'3':art.light};
+  ctx.save();
+  ctx.globalAlpha = .78;
+  for (let index=0; index<5; index++) {
+    const x = index*181-travel%181+27;
+    const unit = 5+(index+Math.floor(travel/181))%2;
+    stamp(artRows,x,floor-artRows.length*unit,unit,palette);
+  }
+  ctx.restore();
+}
+
+function drawObstacle(x, kind) {
+  const {wall,shade,light,trim} = scenery[stage];
+  const groundBox = kind === 'box';
+  if (groundBox) {
+    const y = floor-40;
+    rect(x-17,y+4,34,36,'#241d36');
+    rect(x-13,y,26,39,trim);
+    rect(x-14,y+4,28,33,wall);
+    rect(x-11,y+7,22,28,shade);
+    rect(x-13,y+2,26,4,light);
+    rect(x-13,y+33,26,4,light);
+    for (const dx of [-12,10]) {
+      rect(x+dx,y+9,3,3,trim);
+      rect(x+dx,y+28,3,3,trim);
+    }
+    stamp(obstacleMarks[stage],x-7,y+13,3,{'3':trim,'2':light});
+  } else {
+    const y = floor-109;
+    for (const dx of [-11,8]) {
+      rect(x+dx,y-22,3,22,'#20192f');
+      for (let rung=0; rung<4; rung++) rect(x+dx,y-21+rung*5,2,2,light);
+    }
+    rect(x-18,y+4,36,27,'#241d36');
+    rect(x-15,y,30,35,trim);
+    rect(x-13,y+4,26,26,shade);
+    rect(x-12,y+4,24,3,light);
+    for (const dx of [-12,10]) rect(x+dx,y+27,3,3,trim);
+    stamp(obstacleMarks[stage],x-7,y+10,3,{'3':trim,'2':light});
+  }
 }
 
 const ghostPixels = [
@@ -1215,23 +1302,52 @@ function draw() {
   ctx.beginPath();
   ctx.arc(558,68,31,0,Math.PI*2);
   ctx.fill();
-  if (stage) {
-    for (let i=0;i<36;i++) rect((i*83+17)%720, (i*41+9)%138, 2, 2, '#d9e7fc');
+  if (stage === 0 || stage === 2 || stage === 6 || stage === 8) {
+    ctx.save();
+    ctx.globalAlpha = .39;
+    for (let i=0;i<4;i++) {
+      const x = (i*220+130-run.x*.07%880+880)%880-80;
+      const y = 80+(i%3)*24;
+      rect(x+20,y,51,8,'#fff0df');
+      rect(x+8,y+8,77,8,'#fff0df');
+      rect(x,y+16,101,4,'#fff0df');
+    }
+    ctx.restore();
+  } else {
+    for (let i=0;i<36;i++) {
+      const x = (i*83+17)%720;
+      const y = (i*41+9)%138;
+      rect(x,y,2,2,'#d9e7fc');
+      if (i%7 === 0) {
+        rect(x-2,y,6,2,'#f5d4f1');
+        rect(x,y-2,2,6,'#f5d4f1');
+      }
+    }
   }
   for (let i=0;i<13;i++) {
     const offset = (run.x*.16)%74;
     const x = i*74-offset;
     const height = 52+((i+Math.floor(run.x*.16/74))*47)%92;
     rect(x,floor-height,64,height,building);
-    for (let y=floor-height+11;y<floor-8;y+=18) rect(x+13,y,12,7,'#d2a4bf');
+    rect(x+5,floor-height-5,53,5,building);
+    if (i%3 === 1) rect(x+40,floor-height-16,3,14,building);
+    for (let y=floor-height+11;y<floor-8;y+=18) {
+      rect(x+13,y,8,4,scenery[stage].wall);
+      rect(x+39,y,8,4,scenery[stage].wall);
+    }
   }
   drawDistrict();
+  drawStreetDetails();
   rect(0,floor,720,60,ground);
   rect(0,floor,720,4,'#ffe0ce');
   for (let i=0;i<15;i++) {
     const x = i*52-run.x%52;
-    rect(x,floor+16,33,3,scenery[stage].light);
-    rect(x+18,floor+34,31,2,scenery[stage].wall);
+    rect(x,floor+8,49,3,scenery[stage].wall);
+    rect(x+4,floor+12,4,8,scenery[stage].shade);
+    rect(x+9,floor+25,37,3,scenery[stage].wall);
+    rect(x+28,floor+28,3,8,scenery[stage].shade);
+    rect(x+18,floor+37,31,2,scenery[stage].wall);
+    rect(x+5,floor+43,10,2,scenery[stage].shade);
   }
   const gateX = playerX + rescueGate - run.x;
   if (stage === 5 && gateX > -60 && gateX < 780) drawRescueArch(gateX,floor);
@@ -1519,7 +1635,7 @@ function frame(now) {
   }
   requestAnimationFrame(frame);
 }
-get('intro-continue').focus();
+get('title-start').focus();
 requestAnimationFrame(frame);
 </script>
 </body>
