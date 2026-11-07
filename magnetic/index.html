@@ -42,6 +42,7 @@ main:has(#play:not([hidden])) > .tag { display:none }
 #progress { margin-left:auto }
 #notice { margin:5px 0; line-height:1.3 }
 .play-actions { display:flex; gap:8px }
+.selection-help { margin-top:8px }
 .touch-help { display:none }
 @media (pointer:coarse) { .touch-help { display:block } }
 canvas { width:100%; height:auto; display:block; border:2px solid #8777ac; border-radius:14px; background:#e5bbe4; image-rendering:pixelated; touch-action:none }
@@ -69,6 +70,10 @@ small { color:#dbc8e7 }
 <p id="power"></p>
 <p id="skin-name"></p>
 <button id="enter">게임 시작 · Enter</button>
+<div class="selection-help">
+<small>위 방향키 / Space 점프·이단 점프 · 아래 방향키 슬라이드 · X 특수기 · Esc 일시정지</small>
+<small class="touch-help">화면 탭으로 점프 · 아래로 밀어 슬라이드 · 옆으로 밀어 특수기</small>
+</div>
 </section>
 <section id="play" hidden>
 <header class="play-header">
@@ -88,8 +93,6 @@ small { color:#dbc8e7 }
 <div class="play-actions">
 <button id="restart" hidden>처음부터</button><button id="next" hidden>다음 스테이지</button><button id="whistle" hidden>호루라기 C</button>
 </div>
-<small>위 방향키 / Space 점프·이단 점프 · 아래 방향키 슬라이드 · X 특수기 · Esc 일시정지</small>
-<small class="touch-help">화면 탭으로 점프 · 아래로 밀어 슬라이드 · 옆으로 밀어 특수기</small>
 </section>
 </main>
 <script>
@@ -666,60 +669,57 @@ function rect(x,y,w,h,color) {
 }
 
 // Pixel offsets for the two legs, body lean, and body height in each action.
+// Row and column of the transparent seam between each costume's shoes.
+const costumeSeams = {
+  yunah: [[78,19], [67,18], [82,16], [74,20]],
+  minju: [[68,22], [68,18], [64,21], [68,22]],
+  moka: [[88,20], [77,17], [71,18]],
+  wonhee: [[98,23], [72,33], [72,29], [72,19]],
+  iroha: [[101,18], [72,18], [74,22], [70,21]],
+};
+
 const costumePoses = [
-  {stride:14, leftLift:0, rightLift:8, lean:.10, height:1},
-  {stride:5, leftLift:0, rightLift:15, lean:.12, height:.97},
-  {stride:-14, leftLift:8, rightLift:0, lean:.10, height:1},
-  {stride:-5, leftLift:15, rightLift:0, lean:.12, height:.97},
-  {stride:12, leftLift:4, rightLift:18, lean:.20, height:1},
-  {stride:-12, leftLift:19, rightLift:8, lean:-.16, height:.97},
-  {stride:6, leftLift:0, rightLift:0, lean:.18, height:.87},
-  {stride:0, leftLift:0, rightLift:0, lean:1.02, height:.73},
+  {spread: 5, lifts:[0,5],  lean:.06, height:1},
+  {spread:-4, lifts:[0,10], lean:.10, height:.98},
+  {spread: 4, lifts:[5,0],  lean:.06, height:1},
+  {spread:-5, lifts:[10,0], lean:.10, height:.98},
+  {spread:-2, lifts:[2,11], lean:.14, height:.97},
+  {spread:-3, lifts:[12,5], lean:-.08,height:.95},
+  {spread: 2, lifts:[0,0],  lean:.14, height:.90},
+  {spread: 0, lifts:[0,0],  lean:.40, height:.53},
 ];
 
-function drawCostumePose(sprite, width, poseIndex) {
+function drawCostumePose(sprite, width, poseIndex, seam) {
   const pose = costumePoses[poseIndex];
-  const sourceWidth = sprite.naturalWidth;
-  const sourceHeight = sprite.naturalHeight;
   const height = Math.round(spriteHeight * pose.height);
   const left = -Math.round(width / 2);
-  if (poseIndex === 7) {
-    // Put the trailing foot behind the runner while the head stays below signs.
-    ctx.translate(-38, -6);
-    ctx.rotate(pose.lean);
-    ctx.drawImage(sprite, left, -height, width, height);
+  const sourceWidth = sprite.naturalWidth;
+  const sourceHeight = sprite.naturalHeight;
+  // Lean from the feet without rotating the face or lifting the planted shoe.
+  ctx.transform(1,0,-pose.lean,1,-Math.round(height*pose.lean*.35),0);
+  if (poseIndex === 7 || !seam) {
+    ctx.drawImage(sprite,left,-height,width,height);
     return;
   }
 
-  ctx.rotate(pose.lean);
-  // Keep the face and outfit intact, and flex the legs below the hips.
-  const hips = Math.round(sourceHeight * .65);
-  const upperHeight = Math.round(height * hips / sourceHeight);
-  ctx.drawImage(sprite, 0, 0, sourceWidth, hips, left, -height, width, upperHeight);
-  const middle = Math.round(sourceWidth / 2);
-  const halfWidth = Math.round(width * middle / sourceWidth);
-  const legLength = height - upperHeight;
-  const legRows = sourceHeight - hips;
-  const stripCount = Math.min(12, legRows);
+  const [splitY, splitX] = seam;
+  const upperHeight = Math.round(height * splitY / sourceHeight);
+  const legHeight = height - upperHeight;
+  const legRatio = Math.min(1, legHeight / 36);
+  const leftWidth = Math.round(width * splitX / sourceWidth);
+  ctx.drawImage(sprite,0,0,sourceWidth,splitY,left,-height,width,upperHeight);
   for (let leg = 0; leg < 2; leg++) {
-    const offset = leg === 0 ? 0 : middle;
-    const sourceLegWidth = leg === 0 ? middle : sourceWidth - middle;
-    const destinationX = left + (leg === 0 ? 0 : halfWidth);
-    const destinationWidth = leg === 0 ? halfWidth : width - halfWidth;
-    const length = legLength - (leg === 0 ? pose.leftLift : pose.rightLift);
-    const stride = leg === 0 ? -pose.stride : pose.stride;
-    for (let strip = 0; strip < stripCount; strip++) {
-      const from = strip / stripCount;
-      const to = (strip + 1) / stripCount;
-      const sourceY = Math.round(legRows * from);
-      const sourceEnd = Math.round(legRows * to);
-      const y = Math.round(length * from);
-      const end = Math.round(length * to);
-      if (end > y) {
-        ctx.drawImage(sprite, offset, hips + sourceY, sourceLegWidth, sourceEnd - sourceY,
-          destinationX + Math.round(stride * from * from), -legLength + y, destinationWidth, end - y);
-      }
-    }
+    const sourceX = leg ? splitX : 0;
+    const sourceLegWidth = leg ? sourceWidth - splitX : splitX;
+    const x = leg ? left + leftWidth : left;
+    const legWidth = leg ? width - leftWidth : leftWidth;
+    const length = Math.max(1,legHeight - Math.round(pose.lifts[leg]*legRatio));
+    const spread = Math.round((leg ? pose.spread : -pose.spread)*legRatio);
+    ctx.save();
+    ctx.translate(x,-legHeight);
+    ctx.transform(1,0,spread/length,1,0,0);
+    ctx.drawImage(sprite,sourceX,splitY,sourceLegWidth,sourceHeight-splitY,0,0,legWidth,length);
+    ctx.restore();
   }
 }
 
@@ -867,7 +867,7 @@ function draw() {
       ctx.filter = moonlight;
     }
     if (run.hurt && Math.floor(run.hurt*12)%2) ctx.globalAlpha = .35;
-    if (animateCostume) drawCostumePose(sprite, width, poseIndex);
+    if (animateCostume) drawCostumePose(sprite, width, poseIndex, costumeSeams[selected[0]][stage-2]);
     else ctx.drawImage(sprite, -Math.round(width/2), -height, width, height);
     ctx.restore();
   }
@@ -972,7 +972,7 @@ function frame(now) {
   get('hearts').textContent = '하트 ' + run.hearts;
   get('energy').textContent = '특수기 ' + run.energy + '/8';
   get('life').textContent = '체력 ' + run.hp;
-  const objective = stage === 5 ? '증거 ' + run.evidence + '/3' : stage === 3 ? '콤보 ' + run.combo : stage === 0 ? '보너스 별 ' + run.bonus : '';
+  const objective = stage === 5 ? '증거 ' + run.evidence + '/3' : stage === 0 ? '보너스 별 ' + run.bonus : '';
   if (get('objective').textContent !== objective) get('objective').textContent = objective;
   get('whistle').disabled = mode !== 'playing';
   get('progress').textContent = Math.min(100, Math.floor(run.x/finish*100)) + '%';
