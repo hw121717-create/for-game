@@ -196,13 +196,18 @@ const spriteHeight = 132;
 const motionHeight = 132;
 const skinNames = ['SUPER REAL ME', 'SUPER REAL ME · 달빛', 'I’LL LIKE YOU · WITH',
   'bomb · MAGIC BOMB', 'NOT CUTE ANYMORE · NOT MY NAME', 'BREAK EVEN · BURNING'];
+const skinIndex = index => [0,4,2][index-firstBonus] ?? index;
 const moonlight = 'drop-shadow(0 0 5px rgba(225,207,255,0.85))';
 let stage = 0;
 let unlocked = 0;
+const firstBonus = 6;
+const lastStage = 8;
+const bonusFinish = 7800;
 try {
   const saved = Number(localStorage.getItem('illit-stage-unlocked'));
   unlocked = Math.max(localStorage.getItem('illit-midnight-unlocked') === 'yes' ? 1 : 0,
     Number.isInteger(saved) ? Math.max(0, Math.min(5, saved)) : 0);
+  if (localStorage.getItem('illit-bonus-unlocked') === 'yes') unlocked = lastStage;
 } catch {}
 const standardFinish = 14400;
 const magneticFinish = 21600;
@@ -307,6 +312,16 @@ const stages = [
         [4820,'box'],[5450,'sign'],[6020,'box'],[6680,'sign'],[7310,'box'],[7910,'sign'],
         [8520,'box'],[9150,'sign'],[9720,'box'],[10280,'sign'],[10920,'box'],[11500,'sign'],
         [12020,'box'],[12560,'sign'],[13090,'box']], 235),
+  chapter('Sunday Morning ✦ 햇살 정원',
+    ['#5088a2','#ffe5a1','#6ea393','#314e57'], [[690,'box'],[1330,'sign'],[2090,'box'],[2670,'sign'],
+      [3370,'box'],[4110,'box'],[4720,'sign'],[5440,'box'],[6130,'sign'],[6970,'box'],[7500,'sign']], 210),
+  chapter('時よ止まれ ✦ 멈춘 시계탑',
+    ['#2d305e','#afa6d9','#696799','#30264c'], [[690,'box'],[1350,'sign'],[2030,'box'],[2460,'sign'],
+      [3090,'box'],[3540,'sign'],[4180,'box'],[4770,'sign'],[5360,'box'],[5890,'sign'],[6500,'box'],[7310,'sign']], 232),
+  chapter('Almond Chocolate ✦ 초콜릿 가게',
+    ['#70445c','#fbd4b8','#995f68','#553747'], [[690,'box'],[1310,'sign'],[1990,'box'],[2590,'sign'],
+      [3290,'box'],[3960,'sign'],[4610,'box'],[5250,'sign'],[5900,'box'],[6500,'sign'],[7210,'box']], 218),
+
 ];
 
 function obstacleKind(kind) {
@@ -363,7 +378,7 @@ function course() {
       for (const offset of [32,70,108]) items.push({x:x+offset,height:height+34,kind:'heart'});
     }
   }
-  if (stage >= 2) {
+  if (stage >= 2 && stage < firstBonus) {
     const ledgeStarts = [[1830,6900],[2600,6200],[3200,7030],[2560,7500]][stage-2];
     for (const x of ledgeStarts) {
       items.push({x,height:118,width:230,kind:'ledge'});
@@ -374,17 +389,34 @@ function course() {
   if (stage === 5) {
     for (const x of [1130,3270,5780,7020,9510,11800]) items.push({x,kind:'evidence',height:45});
   }
+  if (stage === 6) {
+    for (const x of [1660,2890,5100]) {
+      items.push({x,kind:'spring'});
+      for (const [index,height] of [81,123,154,145].entries()) {
+        items.push({x:x+52+index*36,height,kind:'heart'});
+      }
+    }
+  }
+  if (stage === 7) {
+    for (const x of [1720,2800,5020,6200]) items.push({x,kind:'clock',height:36});
+  }
+  if (stage === 8) {
+    for (const [x,height] of [[350,35],[840,106],[1300,20],[2130,105],[2560,20],
+      [3440,110],[3930,20],[4740,104],[5200,20],[6040,110],[6460,20],[7350,104]]) {
+      items.push({x,height,kind:'chocolate'});
+    }
+  }
   return items.sort((first, second) => first.x - second.x);
 }
 
 function reset(saved = null) {
-  run = {musicBeat:-1, effects:[], slideBuffer:0, lastChime:-1, x:saved?.x || 0, height:0, vy:0, jumps:0, hearts:saved?.hearts || 0, energy:saved?.energy || 0, hp:3, slide:0, hurt:0,
+  run = {slow:0, chocolates:0, musicBeat:-1, effects:[], slideBuffer:0, lastChime:-1, x:saved?.x || 0, height:0, vy:0, jumps:0, hearts:saved?.hearts || 0, energy:saved?.energy || 0, hp:3, slide:0, hurt:0,
     magnet:0, dash:0, cat:false, dashHits:0, streak:0, bestStreak:0, time:0, beats:[], platform:0, land:0, standing:null, route:null, combo:0, bestCombo:0, evidence:0, bonus:saved?.bonus || 0, items:course()};
   if (saved) for (const item of run.items) item.done = item.x <= saved.x;
 }
 reset();
 
-const stageNames = ['자석 골목','자정의 옥상','보내지 못한 편지','고양이 댄스홀','뒤집힌 쇼윈도','모카 구출 작전'];
+const stageNames = ['자석 골목','자정의 옥상','보내지 못한 편지','고양이 댄스홀','뒤집힌 쇼윈도','모카 구출 작전','Sunday Morning','時よ止まれ','Almond Chocolate'];
 const stageMenu = stageNames.map((name,index) => {
   const button = document.createElement('button');
   button.textContent = String(index+1).padStart(2,'0');
@@ -398,6 +430,7 @@ function stageButtons() {
   stageMenu.forEach((button,index) => {
     button.setAttribute('aria-pressed', String(index === stage));
     button.disabled = index > unlocked;
+    button.hidden = index >= firstBonus && unlocked < firstBonus;
     button.title = stageNames[index] + (button.disabled ? ' · 잠김' : '');
   });
   for (const button of get('actors').children) {
@@ -406,12 +439,12 @@ function stageButtons() {
     button.title = button.disabled ? '모카는 이번 스테이지에서 구출하는 멤버예요.' : '';
     const {idle,skins} = sprites.get(id);
     const thumbnail = button.children[0];
-    const source = (skins[stage] || idle).src;
+    const source = (skins[skinIndex(stage)] || idle).src;
     if (thumbnail.src !== source) thumbnail.src = source;
     thumbnail.style.filter = stage === 1 ? moonlight : '';
   }
   get('selected-stage').textContent = stageNames[stage];
-  get('skin-name').textContent = skinNames[stage];
+  get('skin-name').textContent = (stage >= firstBonus ? '보너스 · ' : '') + skinNames[skinIndex(stage)];
 }
 
 function chooseStage(index) {
@@ -419,7 +452,7 @@ function chooseStage(index) {
   stage = index;
   dialogue = null;
   get('dialogue').hidden = true;
-  finish = stage === 0 ? magneticFinish : standardFinish;
+  finish = stage >= firstBonus ? bonusFinish : stage === 0 ? magneticFinish : standardFinish;
   checkpoint = null;
   get('restart').hidden = true;
   mode = 'ready';
@@ -444,6 +477,9 @@ const openings = [
   [['윤아','무대 뒤에서 찾은 리본을 유리에 대 보자. 잠깐, 거울 속에만 문이 하나 더 보여.']],
   [['민주','문 너머에서 모카 목소리가 들려. 흰 증거 조각을 세 개 이상 모으면 유령을 쫓을 수 있어.'],
    ['이로하','보라색 아치를 지난 뒤 결승선 전에 ←를 눌러 호루라기를 불어. 우리끼리 정했던 신호야.']],
+  [['모카','드디어 한가한 일요일이네. 정원의 노란 발판을 밟으면 꽃잎 너머까지 뛰어오를 수 있어.']],
+  [['이로하','시계탑 꼭대기에서 찍은 사진을 찾자. 반짝이는 회중시계를 지나면 잠깐 풍경이 느려져.']],
+  [['원희','우리 다섯이 나눠 먹을 초콜릿을 고르자. 낮은 곳에도, 점프해야 닿는 곳에도 있어.']],
 ];
 const closings = [
   [['윤아','별 조각 뒷면에 초승달이 새겨져 있어. 옥상에서 달빛에 비춰 보자.']],
@@ -453,6 +489,9 @@ const closings = [
   [['윤아','거울 속 문 뒤에 모카가 있어. 옆에는 우리 연습 때 쓰던 호루라기야.']],
   [['모카','그 신호 듣고 바로 너희인 줄 알았어. 오래 기다렸어.'],
    ['원희','별 다섯 개가 있는 곳이라고 했잖아. 우리 다섯이 모인 여기였네.']],
+  [['민주','이 꽃잎은 책갈피로 쓰자. 오늘 아침이 생각날 때마다 꺼내 보게.']],
+  [['모카','사진 찾았다. 시간이 다시 흐르기 전에 우리 모습도 한 장 남기자.']],
+  [['윤아','한 조각씩 나눠 먹자. 자, 마지막 조각은 같이 달려 준 네 몫이야.']],
 ];
 let dialogue = null;
 let selectionRow = 1;
@@ -503,7 +542,7 @@ function advanceDialogue() {
     get('speaker').textContent = entry[0];
     const [id] = members.find(member => member[1] === entry[0]);
     const {idle,skins} = sprites.get(id);
-    get('speaker-image').src = (skins[stage] || idle).src;
+    get('speaker-image').src = (skins[skinIndex(stage)] || idle).src;
     get('line').textContent = entry[1];
     return;
   }
@@ -674,7 +713,10 @@ window.addEventListener('keydown', event => {
   }
   if (mode === 'rescue') return;
   if (mode === 'ending') {
-    if (event.code === 'ArrowRight' && endingTime >= 3.2) get('back').click();
+    if (event.code === 'ArrowRight' && endingTime >= 3.2) {
+      chooseStage(firstBonus);
+      get('back').click();
+    }
     return;
   }
   if (event.code === 'ArrowLeft' && !dialogue) {
@@ -683,7 +725,7 @@ window.addEventListener('keydown', event => {
   }
   if (event.code !== 'ArrowRight') return;
   if (dialogue) advanceDialogue();
-  else if (mode === 'clear' && stage < 5) get('next').click();
+  else if (mode === 'clear' && (stage < 5 || (stage >= firstBonus && stage < lastStage))) get('next').click();
   else {
     start();
     canvas.focus();
@@ -706,20 +748,24 @@ function end(won) {
   const messages = ['첫 단서 발견! 옥상 보너스 별 '+run.bonus+'개 · 자정의 옥상이 열렸어요.','달빛 편지를 찾았어요.',
     run.route === 'upper' ? '별빛 답장을 보냈어요.' : '하트 답장을 보냈어요.',
     '댄스홀 단서 발견! 최고 콤보 ' + run.bestCombo, '쇼윈도 뒤에서 모카의 행방을 찾았어요.',
-    '구출 성공! 다섯 멤버가 다시 모였어요.'];
+    '구출 성공! 다섯 멤버가 다시 모였어요.','햇살 정원 완주!','시계탑 완주!','초콜릿 '+run.chocolates+'개를 모았어요.'];
   const result = won ? messages[stage] : stage === 5 && run.x >= finish
     ? '유령이 달아났어요. 다시 도전해요.'
     : canResume ? '체크포인트에서 이어 달릴 수 있어요.' : '체력이 모두 떨어졌어요. 다시 도전해요!';
-  const nextHint = won && stage < 5 ? '다음 스테이지' : canResume ? '체크포인트부터' : '다시 도전';
+  const hasNext = won && (stage < 5 || (stage >= firstBonus && stage < lastStage));
+  const nextHint = hasNext ? '다음 스테이지' : canResume ? '체크포인트부터' : '다시 도전';
   const showResult = () => {
     const score = won ? ' · 하트 '+run.hearts+' · 연속 회피 '+run.bestStreak+' · 별 '+run.bonus : '';
     get('notice').textContent = result + score + ' · → ' + nextHint;
-    get('next').hidden = !won || stage === 5;
+    get('next').hidden = !hasNext;
   };
   if (won) showDialogue(closings[stage], () => {
     if (stage === 5) {
       endingTime = 0;
       mode = 'ending';
+      unlocked = lastStage;
+      try { localStorage.setItem('illit-bonus-unlocked','yes'); } catch {}
+      stageButtons();
       if (musicEnabled && audioContext?.state === 'running') {
         const now = audioContext.currentTime;
         for (const [index,note] of [72,76,79,81,84].entries()) {
@@ -736,7 +782,7 @@ function update(dt) {
   const sprint = stage !== 3 && (activeDash || run.cat);
   const previousSlide = run.slide;
   const previousX = run.x;
-  run.x += dt * stages[stage].pace * (sprint ? 1.25 : 1);
+  run.x += dt * stages[stage].pace * (sprint ? 1.25 : 1) * (run.slow ? .57 : 1);
   run.time += dt;
   run.slideBuffer = Math.max(0,run.slideBuffer-dt);
   for (const effect of run.effects) {
@@ -746,7 +792,7 @@ function update(dt) {
     effect.vy += 130*dt;
   }
   run.effects = run.effects.filter(effect => effect.life > 0);
-  for (const timer of ['slide','hurt','magnet','dash','platform','land']) run[timer] = Math.max(0, run[timer] - dt);
+  for (const timer of ['slide','hurt','magnet','dash','platform','land','slow']) run[timer] = Math.max(0, run[timer] - dt);
   run.beats = run.beats.filter(time => time > run.time - .28);
   if (run.cat && previousSlide && !run.slide) jump(480);
   if (run.standing && (run.x >= run.standing.x+run.standing.width || !lit(run.standing))) {
@@ -809,6 +855,23 @@ function update(dt) {
     } else if (item.kind === 'evidence' && Math.abs(distance) < 26 && run.height < 54) {
       item.done = true;
       run.evidence++;
+    } else if (item.kind === 'spring' && previousX < item.x && run.x >= item.x && run.height < 18) {
+      item.done = true;
+      run.jumps = 0;
+      jump(575);
+      gameSound(72,88,.22,.2);
+    } else if (item.kind === 'clock' && previousX < item.x && run.x >= item.x) {
+      item.done = true;
+      run.slow = 1.75;
+      gameSound(83,65,.28,.19);
+    } else if (item.kind === 'chocolate' && Math.abs(distance) < 26
+        && Math.abs(item.height-run.height-(run.slide ? 18 : 35)) < 29) {
+      item.done = true;
+      run.chocolates++;
+      run.hearts += 3;
+      run.energy = Math.min(8,run.energy+2);
+      addSparks(playerX,item.height,'#ffcdb6',5);
+      gameSound(72,81,.13,.17);
     } else if (item.kind === 'bonus' && Math.abs(distance) < (run.platform ? 58 : 23)
       && Math.abs(item.height-run.height-35) < (run.platform ? 46 : 24)) {
       item.done = true;
@@ -891,10 +954,17 @@ const scenery = [
   {wall:'#47366c',shade:'#28234d',light:'#c288eb',trim:'#f5afd9',icon:'♪'},
   {wall:'#61516c',shade:'#382e52',light:'#e8acba',trim:'#c1e7ed',icon:'◇'},
   {wall:'#543a63',shade:'#332444',light:'#d2a2ec',trim:'#ffd992',icon:'✧'},
+  {wall:'#70a49a',shade:'#375c61',light:'#ffc578',trim:'#fff0ac',icon:'✿'},
+  {wall:'#73709e',shade:'#302949',light:'#b9a7e0',trim:'#efdfb2',icon:'◷'},
+  {wall:'#925e70',shade:'#553345',light:'#e4a5a1',trim:'#ffdbb1',icon:'♡'},
 ];
 
 function drawDistrict() {
   const art = scenery[stage];
+  if (stage >= firstBonus) {
+    drawBonusDistrict(art);
+    return;
+  }
   const stride = 126;
   const scroll = run.x*.33;
   for (let index=0; index<7; index++) {
@@ -941,6 +1011,44 @@ function drawDistrict() {
         rect(x+18+i*50,y+16,19,height-16,art.wall);
         rect(x+23+i*50,y+24,9,13,art.trim);
       }
+    }
+  }
+}
+
+function drawBonusDistrict(art) {
+  const scroll = run.x*.31;
+  for (let index=0; index<6; index++) {
+    const x = index*152-scroll%152;
+    if (stage === 6) {
+      rect(x+27,floor-103,10,103,art.shade);
+      rect(x+11,floor-132,42,55,art.wall);
+      rect(x+17,floor-141,30,16,art.wall);
+      rect(x+19,floor-130,18,5,art.trim);
+      for (let flower=0; flower<4; flower++) {
+        const px=x+62+flower*19;
+        rect(px,floor-25,2,24,art.shade);
+        rect(px-3,floor-30,8,6,flower%2 ? art.light : '#f7aacf');
+      }
+    } else if (stage === 7) {
+      const y = floor-184+(index%2)*25;
+      rect(x+35,y,53,floor-y,art.wall);
+      rect(x+42,y+7,39,floor-y-7,art.shade);
+      rect(x+29,y-7,65,7,art.light);
+      rect(x+48,y+27,27,27,art.trim);
+      rect(x+51,y+30,21,21,art.shade);
+      rect(x+60,y+33,2,9,art.trim);
+      rect(x+61,y+41,7,2,art.trim);
+    } else {
+      const y = floor-118;
+      rect(x+8,y,125,118,art.wall);
+      rect(x+16,y+42,109,59,art.shade);
+      rect(x+22,y+48,97,42,art.light);
+      for (let stripe=0; stripe<7; stripe++) {
+        rect(x+8+stripe*18,y+18,17,18,stripe%2 ? art.trim : '#d887a3');
+      }
+      rect(x+67,y+48,3,43,art.shade);
+      rect(x+35,y+72,18,9,'#704854');
+      rect(x+83,y+72,20,9,'#704854');
     }
   }
 }
@@ -1082,7 +1190,7 @@ function drawEnding() {
     ctx.fillStyle='#fff0d8'; ctx.font='bold 25px system-ui'; ctx.textAlign='center';
     ctx.fillText('다섯 별이 다시 모였다',360,181);
     ctx.font='bold 16px system-ui';
-    ctx.fillText('→ 캐릭터 선택',360,218);
+    ctx.fillText('→ 보너스 스테이지',360,218);
     ctx.textAlign='left';
   }
 }
@@ -1139,6 +1247,24 @@ function draw() {
       rect(x,floor,item.width,60,'#17152a');
       rect(x-4,floor,4,15,'#ffca9e');
       rect(x+item.width,floor,4,15,'#ffca9e');
+    } else if (item.kind === 'spring') {
+      rect(x-20,floor-8,40,8,'#91bda2');
+      rect(x-15,floor-14,30,6,'#ffe393');
+      rect(x-8,floor-17,16,3,'#fff7c4');
+    } else if (item.kind === 'clock') {
+      const y = floor-item.height;
+      rect(x-8,y-9,16,16,'#ffe6ad');
+      rect(x-5,y-6,10,10,'#40365c');
+      rect(x,y-5,2,6,'#ffe6ad');
+      rect(x,y,4,2,'#ffe6ad');
+    } else if (item.kind === 'chocolate') {
+      const y = floor-item.height;
+      rect(x-8,y-8,16,16,'#ffd5a4');
+      rect(x-6,y-6,12,12,'#874f53');
+      rect(x-4,y-4,3,3,'#dba18b');
+      rect(x+1,y-4,3,3,'#dba18b');
+      rect(x-4,y+1,3,3,'#dba18b');
+      rect(x+1,y+1,3,3,'#dba18b');
     } else if (item.kind === 'bonus') {
       ctx.fillStyle='#fff5a8'; ctx.font='bold 22px system-ui';
       ctx.fillText('✦',x-9,floor-item.height+5);
@@ -1172,6 +1298,12 @@ function draw() {
       ctx.fillText('♥', x-9, floor-item.height+5);
     }
   }
+  if (run.slow) {
+    ctx.globalAlpha = .18;
+    rect(0,0,720,6,'#e6d0ff');
+    rect(0,432,720,6,'#e6d0ff');
+    ctx.globalAlpha = 1;
+  }
   const goalX = playerX + finish - run.x;
   if (goalX < 750) {
     rect(goalX-2, floor-106, 4,106,'#fff4d6');
@@ -1181,9 +1313,10 @@ function draw() {
   const {idle, poses, stagePoses, skins} = sprites.get(selected[0]);
   const poseIndex = run.slide ? 7 : run.height && !run.standing ? (run.jumps > 1 ? 5 : 4)
     : run.land ? 6 : mode === 'playing' ? Math.floor(run.time*12)%4 : -1;
-  const pose = stage < 2 ? poses[poseIndex] : stagePoses[stage]?.[poseIndex];
+  const outfit = skinIndex(stage);
+  const pose = outfit < 2 ? poses[poseIndex] : stagePoses[outfit]?.[poseIndex];
   const hasPose = pose?.complete && pose.naturalWidth > 0;
-  const sprite = hasPose ? pose : skins[stage] || idle;
+  const sprite = hasPose ? pose : skins[skinIndex(stage)] || idle;
   const feet = Math.max(spriteHeight + 6, floor - run.height);
   if (run.platform) rect(playerX-22, feet+6,44,3,'#d4ecff');
   if (run.magnet || run.dash) {
@@ -1260,6 +1393,19 @@ const scores = [
       67,0,70,67,0,74,77,0, 71,0,74,71,0,77,80,0],
     chords:[[45,60,64],[41,57,60],[43,58,62],[40,59,62]], kick:[0,3,4,7], accent:[2,6],
     whistle:{2:88,4:91,5:89,18:86,20:89,21:87}},
+  {bpm:91, voice:'triangle', sustain:.88,
+    lead:[76,0,79,81,84,0,79,0, 74,0,76,79,83,0,79,0,
+      77,0,81,84,86,84,81,0, 76,0,72,76,79,0,74,0],
+    chords:[[48,64,67],[43,59,67],[41,60,65],[43,62,67]], kick:[0], accent:[3,7]},
+  {bpm:111, voice:'sine', sustain:.8,
+    lead:[81,0,0,76,77,0,72,0, 79,0,0,74,76,0,71,0,
+      84,0,81,0,77,0,76,0, 83,0,79,0,76,0,74,0],
+    chords:[[45,60,64],[43,59,62],[41,60,65],[40,59,62]], kick:[0,4], accent:[2,6]},
+  {bpm:102, voice:'triangle', sustain:1,
+    lead:[72,76,79,0,81,79,76,0, 74,77,81,0,84,81,77,0,
+      76,79,83,0,86,83,79,0, 81,77,74,0,76,74,72,0],
+    chords:[[48,64,67],[50,65,69],[52,67,71],[43,62,65]], kick:[0,5], accent:[3,7]},
+
 ];
 let audioContext;
 let musicGain;
@@ -1366,7 +1512,7 @@ function frame(now) {
     get('hearts').textContent = '♥ ' + run.hearts;
     get('energy').value = run.energy;
     get('life').textContent = '체력 ' + run.hp;
-    const objective = stage === 5 ? '증거 ' + run.evidence + '/3' : '';
+    const objective = stage === 5 ? '증거 ' + run.evidence + '/3' : stage === 8 ? '초콜릿 '+run.chocolates : '';
     if (get('objective').textContent !== objective) get('objective').textContent = objective;
     get('progress').value = Math.min(100,Math.floor(run.x/finish*100));
     draw();
