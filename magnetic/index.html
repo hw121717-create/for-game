@@ -57,12 +57,74 @@ small { color:#dbc8e7 }
 .story img { float:left; height:clamp(36px,9cqw,72px); margin-right:10px; image-rendering:pixelated }
 .story p { margin:4px 0 8px }
 .story button { padding:4px 9px; font-size:.85em }
+.intro {
+  position:relative; overflow:hidden; isolation:isolate; min-height:clamp(420px,73vh,630px);
+  display:grid; align-content:end; padding:clamp(18px,5vw,52px);
+  border:2px solid #8777ac; border-radius:18px;
+  background:radial-gradient(ellipse at 70% 20%,#654782 0%,#30234f 43%,#17162a 85%);
+}
+.intro-city {
+  position:absolute; z-index:-1; inset:20% 0 24%; background:#241d3d; opacity:.9;
+  clip-path:polygon(0 38%,9% 38%,9% 23%,18% 23%,18% 52%,30% 52%,30% 31%,42% 31%,42% 60%,55% 60%,55% 22%,66% 22%,66% 44%,76% 44%,76% 12%,87% 12%,87% 42%,100% 42%,100% 100%,0 100%);
+  animation:intro-city-in 6s ease-out both;
+}
+.intro-moka {
+  position:absolute; z-index:-1; right:12%; bottom:29%; height:54%; max-width:40%;
+  object-fit:contain; image-rendering:pixelated; animation:intro-moka-in 6s ease-in-out both;
+}
+.intro-stars { position:absolute; inset:0; z-index:-1; pointer-events:none }
+.intro-stars i {
+  position:absolute; top:26%; left:66%; color:#ffe3a4; font:normal clamp(14px,3vw,30px) system-ui;
+  text-shadow:0 0 14px #ffbde6; animation:intro-star-flight 3.8s ease-in-out both;
+}
+.intro-stars i:nth-child(1) { --dx:-27vw; --dy:-7vh; animation-delay:.35s }
+.intro-stars i:nth-child(2) { --dx:-18vw; --dy:-13vh; animation-delay:.5s }
+.intro-stars i:nth-child(3) { --dx:-9vw; --dy:-9vh; animation-delay:.65s }
+.intro-stars i:nth-child(4) { --dx:0vw; --dy:-14vh; animation-delay:.8s }
+.intro-stars i:nth-child(5) { --dx:9vw; --dy:-7vh; animation-delay:.95s }
+.intro-copy {
+  max-width:560px; padding:14px 16px; border:1px solid #ad84c4; border-radius:12px;
+  background:#1b142de8;
+}
+.intro-copy h1 { margin-bottom:8px }
+.intro-copy p { margin:6px 0; line-height:1.45 }
+.intro-message { animation:intro-line .55s .65s both }
+.intro-clue { animation:intro-line .65s 2.65s both }
+#intro-continue { margin-top:12px; background:#ffbfdc; color:#2c1933; font-weight:800 }
+@keyframes intro-line { from { opacity:0; transform:translateY(7px) } to { opacity:1; transform:none } }
+@keyframes intro-city-in { from { transform:translateX(5%) } to { transform:translateX(-1%) } }
+@keyframes intro-moka-in {
+  0% { opacity:0; transform:translateX(12px) }
+  30%,58% { opacity:1; transform:none }
+  100% { opacity:.45; transform:translateX(9px) }
+}
+@keyframes intro-star-flight {
+  0% { opacity:0; transform:scale(.45) }
+  40% { opacity:1; transform:scale(1) }
+  100% { opacity:1; transform:translate(var(--dx),var(--dy)) scale(.8) }
+}
+@media (prefers-reduced-motion:reduce) {
+  .intro * { animation:none !important }
+  .intro-stars i { transform:translate(var(--dx),var(--dy)) }
+}
 </style>
 </head>
 <body>
 <main>
+<section id="intro" class="intro" aria-labelledby="intro-title">
+<div class="intro-city" aria-hidden="true"></div>
+<img id="intro-moka" class="intro-moka" alt="">
+<div class="intro-stars" aria-hidden="true"><i>✦</i><i>✦</i><i>✦</i><i>✦</i><i>✦</i></div>
+<div class="intro-copy">
+<div class="tag">ILLIT · 프롤로그</div>
+<h1 id="intro-title">두근두근 사건파일</h1>
+<p class="intro-message"><strong>모카</strong> · 별 다섯 개가 모이는 곳에서 기다릴게.</p>
+<p class="intro-clue">메시지가 끊기자 지도 위의 별들이 흩어졌다. 첫 번째 별은 자석 골목에 떨어졌다.</p>
+<button id="intro-continue">계속 · Enter</button>
+</div>
+</section>
+<section id="selection" hidden>
 <div class="tag">ILLIT · 두근두근 사건파일</div>
-<section id="selection">
 <h1>캐릭터와 스테이지 선택</h1>
 <div class="controls" id="stage-list" aria-label="스테이지 선택"></div>
 <div id="actors" class="actors" aria-label="캐릭터 선택"></div>
@@ -344,7 +406,7 @@ function showPlay(playing) {
   get('play').hidden = !playing;
 }
 const openings = [
-  [['윤아','모카가 남긴 메시지야. “별 다섯 개가 있는 곳에서 기다릴게.” 지도에는 자석 골목만 반짝이네.']],
+  [['윤아','첫 번째 별이 저 골목에 떨어졌어. 모카가 남긴 단서일지도 몰라. 같이 찾아보자.']],
   [['민주','골목에서 찾은 별 조각이 달빛에 반응해. 빛이 닿는 옥상 발판을 따라가 보자.']],
   [['원희','옥상의 편지는 모카가 보낸 거였어. 별빛 답장이든 하트 답장이든, 우리가 왔다는 걸 알려주자.']],
   [['이로하','답장을 보내자 댄스홀에 불이 켜졌어. 모카랑 연습하던 박자야. 무대 뒤를 확인해 보자.']],
@@ -364,6 +426,18 @@ const closings = [
 let dialogue = null;
 let selectionRow = 1;
 chooseStage(0);
+
+const intro = get('intro');
+get('intro-moka').src = sprites.get('moka').idle.src;
+
+function leaveIntro() {
+  if (intro.hidden) return;
+  intro.hidden = true;
+  showPlay(false);
+  focusSelection();
+}
+
+get('intro-continue').addEventListener('click', leaveIntro);
 
 function focusSelection() {
   const actorButtons = Array.from(get('actors').children);
@@ -517,6 +591,13 @@ function input(action) {
 }
 
 window.addEventListener('keydown', event => {
+  if (!intro.hidden) {
+    if (event.code === 'Enter' || event.code === 'NumpadEnter') {
+      event.preventDefault();
+      if (!event.repeat) leaveIntro();
+    }
+    return;
+  }
   const action = {ArrowUp:'jump',ArrowDown:'slide',ArrowRight:'skill',ArrowLeft:'whistle'}[event.code];
   if (event.code === 'Escape' && !event.repeat && (mode === 'playing' || mode === 'paused')) start();
   if (!action) return;
@@ -1021,7 +1102,7 @@ function frame(now) {
   draw();
   requestAnimationFrame(frame);
 }
-focusSelection();
+get('intro-continue').focus();
 requestAnimationFrame(frame);
 </script>
 </body>
