@@ -444,8 +444,11 @@ function input(action) {
       get('whistle').hidden = true;
       if (musicEnabled && audioContext?.state === 'running') {
         const now = audioContext.currentTime;
-        musicNote(90,'sine',now+.015,.13,.42);
-        musicNote(95,'sine',now+.16,.22,.45);
+        musicNote(86,'sine',now+.015,.13,.42,91);
+        musicNote(91,'sine',now+.16,.22,.45,95);
+        for (const [index,note] of [69,73,76,81].entries()) {
+          musicNote(note,'triangle',now+.64+index*.16,.48,.26);
+        }
       }
     }
     return;
@@ -723,6 +726,46 @@ function drawCostumePose(sprite, width, poseIndex, seam) {
   }
 }
 
+const ghostPixels = [
+  '     sss     ',
+  '   ssllmss   ',
+  '  sllllmmms  ',
+  ' sllllllllms ',
+  ' sllmlllmlls ',
+  'sllldllldllms',
+  'sllllllllllms',
+  'sllplllpllms ',
+  ' sllllllllms ',
+  ' slllmmmlmms ',
+  '  sllmmsmms  ',
+  '  slms  ss   ',
+  '   ss        ',
+];
+const ghostPalette = {s:'#8966bc', l:'#ede3ff', m:'#bc9be6', d:'#392b5d', p:'#ffc1e7'};
+
+function drawGhost(x, y, time, opacity, dispersal = 0) {
+  if (opacity <= 0) return;
+  const float = Math.sin(time * 5) * 7;
+  ctx.save();
+  ctx.globalAlpha = opacity * .32;
+  for (let i=0; i<6; i++) {
+    const drift = Math.sin(time * 2 + i * 1.2);
+    rect(x-54+i*15+drift*12,y+27+(i%3)*7,20+i%2*8,4,'#b79ada');
+    rect(x-49+i*15+drift*12,y+23+(i%3)*7,12+i%2*8,4,'#d5bef6');
+  }
+  ctx.globalAlpha = opacity;
+  for (const [row, pixels] of ghostPixels.entries()) {
+    for (let column=0; column<pixels.length; column++) {
+      const color = ghostPalette[pixels[column]];
+      if (!color) continue;
+      const tail = row > 8 ? Math.sin(time*8 + row*.65)*3 : 0;
+      const spread = (column-6)*dispersal*6;
+      rect(x+(column-6)*4+spread+tail,y+row*4-27+float-dispersal*(12+row*2),4,4,color);
+    }
+  }
+  ctx.restore();
+}
+
 function drawRescue() {
   const approach = Math.max(0, Math.min(1, (rescueTime - .55) / 1.55));
   const reunited = approach === 1;
@@ -730,7 +773,9 @@ function drawRescue() {
   rect(0,0,720,438,'#332448');
   rect(0,reunionFloor,720,121,'#292039');
   rect(0,reunionFloor,720,3,'#eab4d9');
-  drawRescueArch(570,reunionFloor,Math.min(1,rescueTime / .65));
+  drawRescueArch(570,reunionFloor,Math.max(0,Math.min(1,(rescueTime-.18)/.47)));
+  const dispersal = Math.min(1,rescueTime/.52);
+  drawGhost(570,reunionFloor-121,run.time+rescueTime,1-dispersal,dispersal);
   const heights = [132,126,120,118,116];
   members.forEach(([id], index) => {
     const {idle,skins} = sprites.get(id);
@@ -792,6 +837,11 @@ function draw() {
   for (let i=0;i<15;i++) rect(i*52-run.x%52,floor+21,30,3,'#76688b');
   const gateX = playerX + rescueGate - run.x;
   if (stage === 5 && gateX > -60 && gateX < 780) drawRescueArch(gateX,floor);
+  if (stage === 5) {
+    const arrival = Math.max(0,Math.min(1,(run.x-(rescueGate-540))/270));
+    const depart = mode === 'lost' ? Math.max(0,1-(run.x-rescueGate)/1000) : 1;
+    drawGhost(Math.max(294,gateX),floor-121+(1-arrival)*28,run.time,arrival*depart);
+  }
   for (const item of run.items) {
     const x = playerX + item.x - run.x;
     if (item.done || x+(item.width || 35) < 0 || x > 755) continue;
@@ -886,12 +936,31 @@ function draw() {
 
 // Original eight-beat loops, voiced separately for each stage.
 const scores = [
-  {bpm:116, voice:'triangle', lead:[76,0,79,81,79,76,0,72,74,0,77,79,77,74,72,0], bass:[48,48,45,43]},
-  {bpm:82, voice:'sine', lead:[72,76,79,0,81,79,76,0,71,74,77,0,79,77,74,0], bass:[48,45,43,43]},
-  {bpm:100, voice:'triangle', lead:[69,72,76,74,72,0,67,69,74,77,81,77,76,72,0,67], bass:[45,48,50,43]},
-  {bpm:126, voice:'square', lead:[72,0,72,75,0,77,75,0,70,0,70,74,0,77,74,0], bass:[48,48,46,43]},
-  {bpm:109, voice:'triangle', lead:[64,0,67,0,70,67,0,64,62,0,65,0,69,65,0,62], bass:[40,43,38,41]},
-  {bpm:132, voice:'triangle', lead:[69,69,0,72,74,0,72,76,77,76,0,74,72,0,71,67], bass:[45,45,41,43]},
+  {bpm:116, voice:'triangle', sustain:.62,
+    lead:[79,0,76,84,81,0,76,79, 77,0,74,81,79,77,0,72,
+      76,79,0,84,86,0,84,81, 79,0,74,77,81,77,74,0],
+    chords:[[48,64,67],[45,60,64],[41,60,65],[43,62,65]], kick:[0,3,6], accent:[2,7]},
+  {bpm:82, voice:'sine', sustain:1.45,
+    lead:[84,0,79,0,76,0,79,0, 83,0,76,0,74,0,71,0,
+      81,0,77,0,72,0,76,0, 79,0,74,0,71,0,74,0],
+    chords:[[48,64,71],[47,62,67],[41,60,69],[43,62,65]], kick:[], accent:[]},
+  {bpm:101, voice:'triangle', sustain:.86,
+    lead:[76,0,72,74,76,79,0,76, 81,0,76,74,72,0,69,0,
+      77,0,74,76,77,81,0,77, 79,0,77,74,76,72,0,67],
+    chords:[[45,60,64],[48,64,67],[50,65,69],[43,62,65]], kick:[0,5], accent:[3,7]},
+  {bpm:128, voice:'square', sustain:.46,
+    lead:[77,80,0,84,0,83,80,0, 79,0,82,85,84,0,79,0,
+      89,84,0,88,0,84,80,0, 82,0,80,77,79,0,76,0],
+    chords:[[41,56,60],[43,58,61],[37,56,60],[48,58,64]], kick:[0,2,4,6], accent:[1,3,5,7]},
+  {bpm:105, voice:'triangle', sustain:.48,
+    lead:[0,64,0,67,0,70,67,0, 0,67,0,69,0,72,69,0,
+      0,65,0,69,0,72,69,0, 0,63,0,66,0,69,66,0],
+    chords:[[40,55,58],[43,59,62],[41,57,60],[42,57,63]], kick:[0,5], accent:[1,3,5,7]},
+  {bpm:136, voice:'triangle', sustain:.64,
+    lead:[69,0,72,69,0,76,74,0, 65,0,69,65,0,72,74,0,
+      67,0,70,67,0,74,77,0, 71,0,74,71,0,77,80,0],
+    chords:[[45,60,64],[41,57,60],[43,58,62],[40,59,62]], kick:[0,3,4,7], accent:[2,6],
+    whistle:{2:88,4:91,5:89,18:86,20:89,21:87}},
 ];
 let audioContext;
 let musicGain;
@@ -912,11 +981,12 @@ function startMusic() {
   if (audioContext.state === 'suspended') audioContext.resume().catch(() => {});
 }
 
-function musicNote(pitch, voice, time, duration, level) {
+function musicNote(pitch, voice, time, duration, level, endPitch = pitch) {
   const oscillator = audioContext.createOscillator();
   const envelope = audioContext.createGain();
   oscillator.type = voice;
-  oscillator.frequency.value = 440 * 2 ** ((pitch - 69)/12);
+  oscillator.frequency.setValueAtTime(440 * 2 ** ((pitch - 69)/12),time);
+  if (endPitch !== pitch) oscillator.frequency.exponentialRampToValueAtTime(440 * 2 ** ((endPitch - 69)/12),time+duration*.7);
   envelope.gain.setValueAtTime(.0001,time);
   envelope.gain.exponentialRampToValueAtTime(level,time+.012);
   envelope.gain.exponentialRampToValueAtTime(.0001,time+duration);
@@ -933,7 +1003,7 @@ function updateMusic() {
   const active = musicEnabled && !document.hidden && !get('play').hidden && mode !== 'paused';
   const level = !active ? 0 : mode === 'playing' ? .27 : .13;
   musicGain.gain.setTargetAtTime(level,now,.025);
-  if (!active) return;
+  if (!active || mode === 'rescue' || (stage === 5 && mode === 'clear')) return;
   const score = scores[stage];
   const beat = 30 / score.bpm;
   if (musicStage !== stage) {
@@ -943,9 +1013,21 @@ function updateMusic() {
   } else if (nextNote < now) nextNote = now + .035;
   while (nextNote < now+.12) {
     const pitch = score.lead[musicStep];
-    if (pitch) musicNote(pitch,score.voice,nextNote,beat*.85,score.voice === 'square' ? .13 : .24);
-    if (musicStep % 4 === 0) musicNote(score.bass[musicStep/4],'sine',nextNote,beat*2.7,.36);
-    if (score.bpm >= 109 && musicStep % 2 === 0) musicNote(32,'sine',nextNote,.085,.26);
+    const inBar = musicStep % 8;
+    const [root, third, fifth] = score.chords[Math.floor(musicStep/8)];
+    if (pitch) musicNote(pitch,score.voice,nextNote,beat*score.sustain,score.voice === 'square' ? .085 : .20);
+    if (inBar === 0 || inBar === 5) {
+      musicNote(root,'sine',nextNote,beat*2.4,.28);
+    }
+    if (inBar === 1 || inBar === 5) {
+      const harmonyLength = beat*(stage === 1 ? 4.4 : stage === 4 ? .62 : 1.8);
+      musicNote(third,'sine',nextNote,harmonyLength,.11);
+      musicNote(fifth,'triangle',nextNote,harmonyLength,.055);
+    }
+    if (score.kick.includes(inBar)) musicNote(38,'sine',nextNote,.10,.31,27);
+    if (score.accent.includes(inBar)) musicNote(102,'triangle',nextNote,.043,.08,79);
+    const call = score.whistle?.[musicStep];
+    if (call && mode === 'playing') musicNote(call-2,'sine',nextNote,beat*.78,.17,call);
     musicStep = (musicStep+1) % score.lead.length;
     nextNote += beat;
   }
