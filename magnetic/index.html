@@ -129,30 +129,33 @@ select(selected);
 
 const sections = [
   {from:0, title:'01 · 골목 입구', hint:'하트를 따라 달리고, 상자는 점프로 넘어가요.'},
-  {from:4900, title:'01 · 낮은 간판', hint:'↓ 간판 아래는 슬라이드로 통과하세요.'},
+  {from:4900, title:'01 · 낮은 간판', hint:'간판 아래로 미끄러지고, 바닥이 끊긴 곳은 하트 곡선을 따라 뛰어요.'},
   {from:9800, title:'01 · 교차로', hint:'상자 다음에 간판이 나오면 착지한 뒤 슬라이드하세요.'},
   {from:14400, title:'02 · 자석 거리', hint:'민트색 발판을 밟고 하트가 끌려오는 길을 따라가요.'},
-  {from:19200, title:'02 · 공중 하트', hint:'공중에서 한 번 더 뛰면 높은 하트까지 닿아요.'},
+  {from:19200, title:'02 · 옥상 보너스', hint:'이단 점프로 분홍 발판에 올라 보너스 별을 모아요. 아래 길로도 갈 수 있어요.'},
   {from:24000, title:'02 · 자석 교차로', hint:'낮은 길에는 발판, 높은 길에는 하트가 있어요.'},
   {from:28800, title:'03 · 뒷골목 추격', hint:'장애물 사이가 좁아져요. 다음 표식을 미리 보세요.'},
-  {from:33600, title:'03 · 네온 골목', hint:'연속 장애물 사이에서 모아 둔 특수기를 써 보세요.'},
+  {from:33600, title:'03 · 네온 골목', hint:'끊긴 길을 건너거나 위쪽 발판에 착지해 별을 챙겨요.'},
   {from:38400, title:'03 · 첫 단서', hint:'마지막 간판을 지나 골목 끝의 단서를 찾아요.'},
 ];
 
 const encounters = [
   [880,'box'], [2020,'box'], [3080,'box'], [4220,'box',true],
-  [5450,'sign'], [6550,'sign'], [7670,'sign'], [8790,'sign'],
-  [10050,'box'], [10650,'sign'], [11550,'box'], [12200,'sign'], [13520,'box'],
-  [14930,'pad'], [15700,'box',true], [16580,'sign'], [17440,'pad'], [18230,'box'],
-  [19610,'box',true], [20430,'sign'], [21260,'box',true], [22100,'pad'], [22920,'box',true],
-  [24410,'pad'], [25120,'sign'], [25830,'box',true], [26510,'sign'], [27240,'pad'], [28030,'box'],
-  [29290,'box'], [29730,'sign'], [30380,'box',true], [31060,'sign'], [31740,'pad'],
-  [32410,'box'], [32920,'sign'], [33840,'box'], [34280,'sign'], [34960,'box',true],
-  [35440,'sign'], [36080,'pad'], [36720,'box'], [37160,'sign'], [37800,'box',true],
-  [38780,'sign'], [39240,'box'], [39700,'sign'], [40340,'box',true], [40800,'sign'],
-  [41370,'pad'], [42020,'box'], [42460,'sign'],
+  [5450,'sign'], [6550,'sign'], [8790,'sign'],
+  [10050,'box'], [10650,'sign'], [12200,'sign'], [13520,'box'],
+  [14930,'pad'], [15700,'box',true], [16580,'sign'], 
+  [19610,'box',true], [20430,'sign'], [22100,'pad'], 
+  [24410,'pad'], [25120,'sign'], [25830,'box',true], [26510,'sign'], [28030,'box'],
+  [29290,'box'], [29730,'sign'], [31060,'sign'], [31740,'pad'],
+  [32920,'sign'], [33840,'box'], [34280,'sign'], [35440,'sign'], [36080,'pad'], [36720,'box'], [37160,'sign'], 
+  [38780,'sign'], [39240,'box'], [39700,'sign'], [40800,'sign'],
+  [42020,'box'], [42460,'sign'],
 ];
 const checkpointMarkers = [14400,28800];
+const gaps = [[7670,90],[11550,104],[18230,118],[22920,120],[30380,126],[34960,136],[37800,142],[40340,150]];
+const bonusLedges = [[21240,112,350],[21560,150,280],[34900,114,230],[35160,150,210],
+  [37760,116,225],[38030,151,240]];
+const sweepPads = [17440,27240,41370];
 
 const rooftopSections = [
   {from:0, title:'01 · 달빛 연습', hint:'하늘색으로 빛나는 발판에 내려앉아 보세요.'},
@@ -248,6 +251,22 @@ function course() {
   }
   if (stage === 0) {
     for (const x of checkpointMarkers) items.push({x,kind:'checkpoint'});
+    for (const [x,width] of gaps) {
+      items.push({x,width,kind:'gap'});
+      for (let i=0;i<6;i++) {
+        items.push({x:x-32+i*(width+64)/5,height:33+Math.sin(i*Math.PI/5)*72,kind:'heart'});
+      }
+    }
+    for (const [x,height,width] of bonusLedges) {
+      items.push({x,height,width,kind:'ledge'});
+      for (const offset of [42,92,142]) items.push({x:x+offset,height:height+35,kind:'bonus'});
+    }
+    for (const x of sweepPads) {
+      items.push({x,kind:'pad'});
+      for (let i=0;i<14;i++) {
+        items.push({x:x+44+i*28,height:i%2 ? 92 : 45,kind:'heart'});
+      }
+    }
   }
   if (stage === 1) {
     for (const [x,height,width,phase] of rooftops) {
@@ -259,12 +278,12 @@ function course() {
   if (stage === 5) {
     for (const x of [1130,3270,5780,7020,9510,11800]) items.push({x,kind:'evidence',height:45});
   }
-  return items;
+  return items.sort((first, second) => first.x - second.x);
 }
 
 function reset(saved = null) {
   run = {x:saved?.x || 0, height:0, vy:0, jumps:0, hearts:saved?.hearts || 0, energy:saved?.energy || 0, hp:3, slide:0, hurt:0,
-    magnet:0, dash:0, cat:false, time:0, beats:[], platform:0, land:0, standing:null, section:-1, route:null, combo:0, bestCombo:0, evidence:0, items:course()};
+    magnet:0, dash:0, cat:false, time:0, beats:[], platform:0, land:0, standing:null, section:-1, route:null, combo:0, bestCombo:0, evidence:0, bonus:saved?.bonus || 0, items:course()};
   if (saved) for (const item of run.items) item.done = item.x <= saved.x;
 }
 reset();
@@ -432,7 +451,7 @@ function end(won) {
     stageButtons();
     get('next').hidden = false;
   }
-  const messages = ['첫 단서 발견! 자정의 옥상이 열렸어요.','달빛 편지를 찾았어요.',
+  const messages = ['첫 단서 발견! 옥상 보너스 별 '+run.bonus+'개 · 자정의 옥상이 열렸어요.','달빛 편지를 찾았어요.',
     run.route === 'upper' ? '별빛 답장을 보냈어요.' : '하트 답장을 보냈어요.',
     '댄스홀 단서 발견! 최고 콤보 ' + run.bestCombo, '쇼윈도 뒤에서 모카의 행방을 찾았어요.',
     '구출 성공! 다섯 멤버가 다시 모였어요.'];
@@ -455,11 +474,22 @@ function update(dt) {
     run.standing = null;
     run.jumps = 1;
   }
+  const gap = stage === 0 && run.items.find(item => item.kind === 'gap'
+    && run.x >= item.x && run.x < item.x+item.width);
+  if (gap && run.height <= 0 && run.vy <= 0) {
+    run.hp--;
+    if (!run.hp) { end(false); return; }
+    run.x = gap.x+gap.width+12;
+    run.height = run.vy = run.jumps = 0;
+    run.slide = 0;
+    run.hurt = 1;
+    get('notice').textContent = '틈에 빠졌어요! 다시 발판 위에서 달려요.';
+  }
   if (!run.standing && (run.height > 0 || run.vy > 0)) {
     const oldHeight = run.height;
     run.height += run.vy * dt;
     run.vy -= 1150 * dt;
-    if (stage === 1 && run.vy <= 0) {
+    if (stage <= 1 && run.vy <= 0) {
       const landing = run.items.find(item => item.kind === 'ledge' && lit(item)
         && run.x >= item.x && run.x < item.x+item.width
         && oldHeight >= item.height && run.height <= item.height);
@@ -477,10 +507,10 @@ function update(dt) {
   }
   for (const item of run.items) {
     const distance = item.x - run.x;
-    if (item.kind === 'ledge' || item.done || distance > 125 || distance < -32) continue;
+    if (item.kind === 'ledge' || item.kind === 'gap' || item.done || distance > 125 || distance < -32) continue;
     if (item.kind === 'checkpoint' && previousX < item.x && run.x >= item.x) {
       item.done = true;
-      checkpoint = {x:item.x,hearts:run.hearts,energy:run.energy};
+      checkpoint = {x:item.x,hearts:run.hearts,energy:run.energy,bonus:run.bonus};
       get('notice').textContent = '체크포인트 도착! 실패하면 여기서 다시 시작해요.';
     } else if (item.kind === 'fork' && previousX < item.x && run.x >= item.x) {
       item.done = true;
@@ -496,6 +526,13 @@ function update(dt) {
       item.done = true;
       run.evidence++;
       get('notice').textContent = '증거 확보! ' + run.evidence + '/3';
+    } else if (item.kind === 'bonus' && Math.abs(distance) < 23
+      && Math.abs(item.height-run.height-35) < 24) {
+      item.done = true;
+      run.bonus++;
+      run.hearts += 5;
+      run.energy = Math.min(8, run.energy+2);
+      get('notice').textContent = '옥상 보너스! 하트 +5';
     } else if (item.kind === 'heart') {
       const center = run.height + (run.slide ? 17 : 40);
       if ((Math.abs(distance) < 23 && Math.abs(item.height - center) < 31) || (run.magnet && distance < 125)) {
@@ -542,7 +579,9 @@ function rect(x,y,w,h,color) {
 
 function draw() {
   const sky = ctx.createLinearGradient(0,0,0,floor);
-  const [skyTop,skyBottom,building,ground] = stages[stage].palette;
+  const lateMagnetic = stage === 0 && run.x >= 28800;
+  const [skyTop,skyBottom,building,ground] = lateMagnetic
+    ? ['#262044','#a0659b','#463666','#2c2648'] : stages[stage].palette;
   sky.addColorStop(0,skyTop);
   sky.addColorStop(1,skyBottom);
   rect(0,0,720,438,sky);
@@ -566,10 +605,19 @@ function draw() {
   for (const item of run.items) {
     const x = playerX + item.x - run.x;
     if (item.done || x+(item.width || 35) < 0 || x > 755) continue;
-    if (item.kind === 'ledge') {
+    if (item.kind === 'gap') {
+      rect(x,floor,item.width,60,'#17152a');
+      rect(x-4,floor,4,15,'#ffca9e');
+      rect(x+item.width,floor,4,15,'#ffca9e');
+      ctx.fillStyle='#ffefc4'; ctx.font='bold 17px system-ui';
+      ctx.fillText('↑',x-12,floor-12);
+    } else if (item.kind === 'bonus') {
+      ctx.fillStyle='#fff5a8'; ctx.font='bold 22px system-ui';
+      ctx.fillText('✦',x-9,floor-item.height+5);
+    } else if (item.kind === 'ledge') {
       const y = floor-item.height;
       const visible = lit(item);
-      rect(x,y,item.width,visible ? 7 : 2,visible ? '#bdf4ff' : '#827dad');
+      rect(x,y,item.width,visible ? 7 : 2,visible ? (stage === 0 ? '#ffc4e7' : '#bdf4ff') : '#827dad');
       if (visible) rect(x,y+6,item.width,4,'#748dd7');
     } else if (item.kind === 'checkpoint') {
       rect(x-2,floor-135,4,135,'#a7fce8');
@@ -697,7 +745,7 @@ function frame(now) {
     run.section = section;
     get('section').textContent = activeSections[section].title + ' · ' + activeSections[section].hint;
   }
-  const objective = stage === 5 ? '증거 ' + run.evidence + '/3' : stage === 3 ? '콤보 ' + run.combo : '';
+  const objective = stage === 5 ? '증거 ' + run.evidence + '/3' : stage === 3 ? '콤보 ' + run.combo : stage === 0 ? '보너스 별 ' + run.bonus : '';
   if (get('objective').textContent !== objective) get('objective').textContent = objective;
   get('whistle').disabled = !rescueWindow() || mode !== 'playing';
   get('progress').textContent = Math.min(100, Math.floor(run.x/finish*100)) + '%';
