@@ -13,6 +13,7 @@ h1 { margin:4px 0 10px; font-size:clamp(26px,5vw,46px); letter-spacing:-.045em }
 p { margin:8px 0 14px; color:#e6d6ed }
 .actors,.controls,.hud { display:flex; flex-wrap:wrap; gap:8px }
 button { border:1px solid #81759f; color:inherit; background:#2d2946; border-radius:10px; padding:8px 12px; font:inherit; cursor:pointer; touch-action:manipulation }
+button:disabled { opacity:.45; cursor:default }
 button:focus-visible { outline:3px solid #ffe1a4; outline-offset:2px }
 button[aria-pressed=true],#start { background:#ffbfdc; color:#2c1933; border-color:#ffbfdc; font-weight:800 }
 .actors button { flex:1; min-width:49px; padding:4px }
@@ -28,16 +29,19 @@ small { color:#dbc8e7 }
 </head>
 <body>
 <main>
-<div class="tag">ILLIT · 두근두근 사건파일 · STAGE 01</div>
-<h1>Magnetic <span aria-hidden="true">✦</span> 자석 골목</h1>
-<p>수상한 메시지가 가리키는 골목을 달려 첫 단서를 찾아요.</p>
+<div class="tag">ILLIT · 두근두근 사건파일</div>
+<div class="controls" aria-label="스테이지 선택">
+<button id="stage1">01 자석 골목</button><button id="stage2">02 자정의 옥상</button>
+</div>
+<h1 id="stage-title">Magnetic <span aria-hidden="true">✦</span> 자석 골목</h1>
+<p id="stage-story">수상한 메시지가 가리키는 골목을 달려 첫 단서를 찾아요.</p>
 <div id="actors" class="actors" aria-label="캐릭터 선택"></div>
 <p id="power"></p>
 <div class="hud"><span id="hearts">하트 0</span><span id="energy">특수기 0/8</span><span id="life">체력 3</span><span id="progress">0%</span></div>
 <p id="section" class="tag"></p>
 <canvas id="scene" width="720" height="300" aria-label="Magnetic 자동 달리기 게임"></canvas>
 <div class="controls">
-<button id="start">달리기 시작</button><button id="jump">점프 ↑</button><button id="slide">슬라이드 ↓</button><button id="skill">특수기 X</button>
+<button id="start">달리기 시작</button><button id="next" hidden>다음 스테이지 →</button><button id="jump">점프 ↑</button><button id="slide">슬라이드 ↓</button><button id="skill">특수기 X</button>
 </div>
 <p id="notice" aria-live="polite">멤버를 고르고 달리기 시작을 눌러요.</p>
 <small>↑ 또는 Space로 점프, 공중에서 한 번 더 누르면 이단 점프. ↓로 슬라이드, X로 특수기, Esc로 일시정지.</small>
@@ -62,6 +66,9 @@ let mode = 'ready';
 let run;
 const playerX = 126;
 const floor = 246;
+let stage = 0;
+let unlocked = false;
+try { unlocked = localStorage.getItem('illit-midnight-unlocked') === 'yes'; } catch {}
 const finish = 14400;
 const speed = 240;
 
@@ -110,13 +117,44 @@ const encounters = [
   [13020,'sign'], [13400,'box'], [13820,'sign'],
 ];
 
+const rooftopSections = [
+  {from:0, title:'01 · 달빛 연습', hint:'하늘색으로 빛나는 발판에 내려앉아 보세요.'},
+  {from:3200, title:'02 · 높은 길', hint:'공중에서 한 번 더 뛰어 높은 발판으로 올라가세요.'},
+  {from:6800, title:'03 · 깜빡이는 옥상', hint:'테두리만 보이는 발판은 잠깐 사라져요. 아래 길로도 갈 수 있어요.'},
+  {from:10500, title:'04 · 달빛 편지', hint:'상자와 간판을 지나 옥상 끝의 편지를 찾아요.'},
+];
+const rooftopEncounters = [
+  [880,'box'], [1810,'sign'], [2680,'box'], [3580,'box'], [4310,'sign'],
+  [5180,'box'], [6120,'sign'], [7070,'box'], [7640,'sign'], [8360,'box'],
+  [8980,'sign'], [9640,'box'], [10230,'sign'], [10920,'box'], [11460,'sign'],
+  [12180,'box'], [12720,'sign'], [13320,'box'], [13870,'sign'],
+];
+const rooftops = [
+  [510,68,175,0], [1260,80,190,0], [2270,78,160,0],
+  [3320,112,170,0], [3950,130,164,.25], [4870,122,170,.5],
+  [5720,132,185,.75], [6600,114,170,.25], [7370,135,150,.65],
+  [8010,112,145,1], [8630,135,150,.1], [9300,120,140,.5],
+  [9920,138,150,.9], [10730,118,155,.35], [11800,136,175,.55],
+  [12400,124,145,.2], [13630,125,170,.8],
+];
+
+function lit(ledge) {
+  return !ledge.phase || (run.time + ledge.phase) % 2.1 < 1.55;
+}
+
 function course() {
   const items = Array.from({length:8}, (_,i) => ({x:155+i*48,height:30,kind:'heart'}));
-  for (const [x, kind, high] of encounters) {
+  for (const [x, kind, high] of (stage ? rooftopEncounters : encounters)) {
     items.push({x, kind});
     for (let i=0; i<5; i++) {
       const height = kind === 'box' ? 40 + Math.sin(i*Math.PI/4) * (high ? 130 : 65) : 18;
       items.push({x:x-85+i*39, height, kind:'heart'});
+    }
+  }
+  if (stage) {
+    for (const [x,height,width,phase] of rooftops) {
+      items.push({x,height,width,phase,kind:'ledge'});
+      for (const offset of [32,70,108]) items.push({x:x+offset,height:height+34,kind:'heart'});
     }
   }
   return items;
@@ -124,9 +162,33 @@ function course() {
 
 function reset() {
   run = {x:0, height:0, vy:0, jumps:0, hearts:0, energy:0, hp:3, slide:0, hurt:0,
-    magnet:0, dash:0, cat:false, time:0, beats:[], platform:0, land:0, section:-1, items:course()};
+    magnet:0, dash:0, cat:false, time:0, beats:[], platform:0, land:0, standing:null, section:-1, items:course()};
 }
 reset();
+
+function stageButtons() {
+  get('stage1').setAttribute('aria-pressed', String(stage === 0));
+  get('stage2').setAttribute('aria-pressed', String(stage === 1));
+  get('stage2').disabled = !unlocked;
+}
+stageButtons();
+
+function chooseStage(index) {
+  if (index === 1 && !unlocked) return;
+  stage = index;
+  mode = 'ready';
+  reset();
+  stageButtons();
+  get('next').hidden = true;
+  get('stage-title').textContent = stage ? 'Midnight Fiction ✦ 자정의 옥상' : 'Magnetic ✦ 자석 골목';
+  get('stage-story').textContent = stage ? '달빛이 비추는 발판을 따라 옥상에 숨겨진 편지를 찾아요.' : '수상한 메시지가 가리키는 골목을 달려 첫 단서를 찾아요.';
+  get('start').textContent = '달리기 시작';
+  get('notice').textContent = '멤버를 고르고 달리기 시작을 눌러요.';
+}
+
+get('stage1').addEventListener('click', () => chooseStage(0));
+get('stage2').addEventListener('click', () => chooseStage(1));
+get('next').addEventListener('click', () => chooseStage(1));
 
 function start() {
   if (mode === 'playing') {
@@ -137,11 +199,13 @@ function start() {
   }
   if (mode !== 'paused') reset();
   mode = 'playing';
+  get('next').hidden = true;
   get('start').textContent = '일시정지';
   get('notice').textContent = '하트를 모아 특수기를 충전하세요.';
 }
 
 function jump(force = 460) {
+  run.standing = null;
   run.slide = 0;
   run.cat = false;
   run.vy = force;
@@ -157,7 +221,7 @@ function input(action) {
     switch (selected[0]) {
       case 'yunah': run.dash = .9; break;
       case 'minju': run.platform = .8; run.jumps = 0; jump(450); break;
-      case 'moka': run.cat = true; run.height = 0; run.vy = 0; run.jumps = 0; run.slide = .66; break;
+      case 'moka': run.standing = null; run.cat = true; run.height = 0; run.vy = 0; run.jumps = 0; run.slide = .66; break;
       case 'wonhee': run.magnet = 5; break;
       case 'iroha': run.beats = [1, 2, 3].map(delay => run.time + delay); break;
     }
@@ -170,7 +234,7 @@ function input(action) {
     get('notice').textContent = '비트 성공! 하트 +3';
   }
   if (action === 'jump' && run.jumps < 2) jump();
-  if (action === 'slide' && run.height === 0) run.slide = .56;
+  if (action === 'slide' && (run.height === 0 || run.standing)) run.slide = .56;
 }
 
 get('start').addEventListener('click', () => {
@@ -192,7 +256,15 @@ document.addEventListener('visibilitychange', () => {
 function end(won) {
   mode = won ? 'clear' : 'lost';
   get('start').textContent = '다시 달리기';
-  get('notice').textContent = won ? '첫 단서 획득! 달빛 아래에서 다음 조각을 찾아요.' : '체력이 모두 떨어졌어요. 다시 도전해요!';
+  if (won && !stage) {
+    unlocked = true;
+    try { localStorage.setItem('illit-midnight-unlocked','yes'); } catch {}
+    stageButtons();
+    get('next').hidden = false;
+  }
+  get('notice').textContent = won
+    ? (stage ? '두 번째 단서 획득! 달빛 편지를 찾았어요.' : '첫 단서 획득! 자정의 옥상이 열렸어요.')
+    : '체력이 모두 떨어졌어요. 다시 도전해요!';
 }
 
 function update(dt) {
@@ -204,9 +276,25 @@ function update(dt) {
   for (const timer of ['slide','hurt','magnet','dash','platform','land']) run[timer] = Math.max(0, run[timer] - dt);
   run.beats = run.beats.filter(time => time > run.time - .23);
   if (run.cat && previousSlide && !run.slide) jump(390);
-  if (run.height > 0 || run.vy > 0) {
+  if (run.standing && (run.x >= run.standing.x+run.standing.width || !lit(run.standing))) {
+    run.standing = null;
+    run.jumps = 1;
+  }
+  if (!run.standing && (run.height > 0 || run.vy > 0)) {
+    const oldHeight = run.height;
     run.height += run.vy * dt;
     run.vy -= 1150 * dt;
+    if (stage && run.vy <= 0) {
+      const landing = run.items.find(item => item.kind === 'ledge' && lit(item)
+        && run.x >= item.x && run.x < item.x+item.width
+        && oldHeight >= item.height && run.height <= item.height);
+      if (landing) {
+        run.standing = landing;
+        run.height = landing.height;
+        run.vy = run.jumps = 0;
+        run.land = .12;
+      }
+    }
     if (run.height <= 0) {
       run.height = run.vy = run.jumps = 0;
       run.land = .12;
@@ -214,7 +302,7 @@ function update(dt) {
   }
   for (const item of run.items) {
     const distance = item.x - run.x;
-    if (item.done || distance > 125 || distance < -32) continue;
+    if (item.kind === 'ledge' || item.done || distance > 125 || distance < -32) continue;
     if (item.kind === 'heart') {
       const center = run.height + (run.slide ? 17 : 40);
       if ((Math.abs(distance) < 23 && Math.abs(item.height - center) < 31) || (run.magnet && distance < 125)) {
@@ -252,13 +340,16 @@ function rect(x,y,w,h,color) {
 
 function draw() {
   const sky = ctx.createLinearGradient(0,0,0,floor);
-  sky.addColorStop(0,'#322c59');
-  sky.addColorStop(1,'#efacbb');
+  sky.addColorStop(0,stage ? '#101837' : '#322c59');
+  sky.addColorStop(1,stage ? '#676394' : '#efacbb');
   rect(0,0,720,300,sky);
   ctx.fillStyle = '#ffedbd';
   ctx.beginPath();
   ctx.arc(558,68,31,0,Math.PI*2);
   ctx.fill();
+  if (stage) {
+    for (let i=0;i<36;i++) rect((i*83+17)%720, (i*41+9)%138, 2, 2, '#d9e7fc');
+  }
   for (let i=0;i<13;i++) {
     const offset = (run.x*.16)%74;
     const x = i*74-offset;
@@ -271,8 +362,13 @@ function draw() {
   for (let i=0;i<15;i++) rect(i*52-run.x%52,267,30,3,'#76688b');
   for (const item of run.items) {
     const x = playerX + item.x - run.x;
-    if (item.done || x < -35 || x > 755) continue;
-    if (item.kind === 'box') {
+    if (item.done || x+(item.width || 35) < 0 || x > 755) continue;
+    if (item.kind === 'ledge') {
+      const y = floor-item.height;
+      const visible = lit(item);
+      rect(x,y,item.width,visible ? 7 : 2,visible ? '#bdf4ff' : '#827dad');
+      if (visible) rect(x,y+6,item.width,4,'#748dd7');
+    } else if (item.kind === 'box') {
       rect(x-15,floor-40,30,40,'#924766');
       rect(x-11,floor-35,22,4,'#ffb8c7');
     } else if (item.kind === 'sign') {
@@ -295,7 +391,7 @@ function draw() {
     ctx.fillStyle='#fff4ed'; ctx.font='bold 14px system-ui'; ctx.fillText('단서',goalX+7,floor-86);
   }
   const {idle, poses} = sprites.get(selected[0]);
-  const poseIndex = run.slide ? 7 : run.height ? (run.jumps > 1 ? 5 : 4)
+  const poseIndex = run.slide ? 7 : run.height && !run.standing ? (run.jumps > 1 ? 5 : 4)
     : run.land ? 6 : mode === 'playing' ? Math.floor(run.time*12)%4 : -1;
   const pose = poses[poseIndex];
   const hasPose = pose?.complete && pose.naturalWidth > 0;
@@ -327,7 +423,7 @@ function draw() {
   if (mode === 'clear' || mode === 'lost' || mode === 'paused') {
     rect(210,96,300,73,'#261f41');
     ctx.fillStyle='#fff1d6'; ctx.font='bold 24px system-ui'; ctx.textAlign='center';
-    ctx.fillText({clear:'✦ 첫 단서 발견!',lost:'다시 도전!',paused:'일시정지'}[mode],360,141);
+    ctx.fillText({clear:stage ? '✦ 달빛 편지 발견!' : '✦ 첫 단서 발견!',lost:'다시 도전!',paused:'일시정지'}[mode],360,141);
     ctx.textAlign='left';
   }
 }
@@ -340,10 +436,11 @@ function frame(now) {
   get('hearts').textContent = '하트 ' + run.hearts;
   get('energy').textContent = '특수기 ' + run.energy + '/8';
   get('life').textContent = '체력 ' + run.hp;
-  const section = sections.reduce((index, entry, i) => run.x >= entry.from ? i : index, 0);
+  const activeSections = stage ? rooftopSections : sections;
+  const section = activeSections.reduce((index, entry, i) => run.x >= entry.from ? i : index, 0);
   if (section !== run.section) {
     run.section = section;
-    get('section').textContent = sections[section].title + ' · ' + sections[section].hint;
+    get('section').textContent = activeSections[section].title + ' · ' + activeSections[section].hint;
   }
   get('progress').textContent = Math.min(100, Math.floor(run.x/finish*100)) + '%';
   draw();
