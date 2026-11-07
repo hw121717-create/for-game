@@ -633,6 +633,64 @@ function rect(x,y,w,h,color) {
   ctx.fillRect(Math.round(x),Math.round(y),w,h);
 }
 
+// Pixel offsets for the two legs, body lean, and body height in each action.
+const costumePoses = [
+  {stride:14, leftLift:0, rightLift:8, lean:.10, height:1},
+  {stride:5, leftLift:0, rightLift:15, lean:.12, height:.97},
+  {stride:-14, leftLift:8, rightLift:0, lean:.10, height:1},
+  {stride:-5, leftLift:15, rightLift:0, lean:.12, height:.97},
+  {stride:12, leftLift:4, rightLift:18, lean:.20, height:1},
+  {stride:-12, leftLift:19, rightLift:8, lean:-.16, height:.97},
+  {stride:6, leftLift:0, rightLift:0, lean:.18, height:.87},
+  {stride:0, leftLift:0, rightLift:0, lean:1.02, height:.73},
+];
+
+function drawCostumePose(sprite, width, poseIndex) {
+  const pose = costumePoses[poseIndex];
+  const sourceWidth = sprite.naturalWidth;
+  const sourceHeight = sprite.naturalHeight;
+  const height = Math.round(spriteHeight * pose.height);
+  const left = -Math.round(width / 2);
+  if (poseIndex === 7) {
+    // Put the trailing foot behind the runner while the head stays below signs.
+    ctx.translate(-38, -6);
+    ctx.rotate(pose.lean);
+    ctx.drawImage(sprite, left, -height, width, height);
+    return;
+  }
+
+  ctx.rotate(pose.lean);
+  // Keep the face and outfit intact, and flex the legs below the hips.
+  const hips = Math.round(sourceHeight * .65);
+  const upperHeight = Math.round(height * hips / sourceHeight);
+  ctx.drawImage(sprite, 0, 0, sourceWidth, hips, left, -height, width, upperHeight);
+  const middle = Math.round(sourceWidth / 2);
+  const halfWidth = Math.round(width * middle / sourceWidth);
+  const legLength = height - upperHeight;
+  const legRows = sourceHeight - hips;
+  const stripCount = Math.min(12, legRows);
+  for (let leg = 0; leg < 2; leg++) {
+    const offset = leg === 0 ? 0 : middle;
+    const sourceLegWidth = leg === 0 ? middle : sourceWidth - middle;
+    const destinationX = left + (leg === 0 ? 0 : halfWidth);
+    const destinationWidth = leg === 0 ? halfWidth : width - halfWidth;
+    const length = legLength - (leg === 0 ? pose.leftLift : pose.rightLift);
+    const stride = leg === 0 ? -pose.stride : pose.stride;
+    for (let strip = 0; strip < stripCount; strip++) {
+      const from = strip / stripCount;
+      const to = (strip + 1) / stripCount;
+      const sourceY = Math.round(legRows * from);
+      const sourceEnd = Math.round(legRows * to);
+      const y = Math.round(length * from);
+      const end = Math.round(length * to);
+      if (end > y) {
+        ctx.drawImage(sprite, offset, hips + sourceY, sourceLegWidth, sourceEnd - sourceY,
+          destinationX + Math.round(stride * from * from), -legLength + y, destinationWidth, end - y);
+      }
+    }
+  }
+}
+
 function draw() {
   const sky = ctx.createLinearGradient(0,0,0,floor);
   const lateMagnetic = stage === 0 && run.x >= checkpointMarkers[1];
@@ -713,6 +771,7 @@ function draw() {
   const poseIndex = run.slide ? 7 : run.height && !run.standing ? (run.jumps > 1 ? 5 : 4)
     : run.land ? 6 : mode === 'playing' ? Math.floor(run.time*12)%4 : -1;
   const pose = stage < 2 ? poses[poseIndex] : null;
+  const animateCostume = stage >= 2 && poseIndex >= 0;
   const hasPose = pose?.complete && pose.naturalWidth > 0;
   const sprite = hasPose ? pose : skins[stage] || idle;
   const feet = Math.max(spriteHeight + 6, floor - run.height);
@@ -724,7 +783,7 @@ function draw() {
   if (sprite.complete && sprite.naturalWidth) {
     const height = hasPose ? Math.round(sprite.naturalHeight * spriteHeight / motionHeight) : run.slide ? 68 : spriteHeight;
     const width = Math.round(sprite.naturalWidth * (hasPose ? spriteHeight / motionHeight : spriteHeight / sprite.naturalHeight));
-    const gait = !hasPose && mode === 'playing' && !run.height && !run.slide ? Math.sin(run.time*27) : 0;
+    const gait = !hasPose && !animateCostume && mode === 'playing' && !run.height && !run.slide ? Math.sin(run.time*27) : 0;
     ctx.save();
     ctx.translate(playerX, Math.round(feet-Math.abs(gait)*3));
     ctx.rotate(gait*.055);
@@ -736,7 +795,8 @@ function draw() {
       ctx.filter = moonlight;
     }
     if (run.hurt && Math.floor(run.hurt*12)%2) ctx.globalAlpha = .35;
-    ctx.drawImage(sprite, -Math.round(width/2), -height, width, height);
+    if (animateCostume) drawCostumePose(sprite, width, poseIndex);
+    else ctx.drawImage(sprite, -Math.round(width/2), -height, width, height);
     ctx.restore();
   }
   if (stage === 3 && mode === 'playing') {
