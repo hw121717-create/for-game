@@ -243,6 +243,7 @@ const playerX = 164;
 const floor = 378;
 const spriteHeight = 132;
 const motionHeight = 132;
+const calmMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false;
 const skinNames = ['SUPER REAL ME', 'SUPER REAL ME · 달빛', 'I’LL LIKE YOU · WITH',
   'bomb · MAGIC BOMB', 'NOT CUTE ANYMORE · NOT MY NAME', 'BREAK EVEN · BURNING'];
 const skinIndex = index => [0,4,2][index-firstBonus] ?? index;
@@ -460,7 +461,7 @@ function course() {
 }
 
 function reset(saved = null) {
-  run = {slow:0, chocolates:0, musicBeat:-1, effects:[], slideBuffer:0, lastChime:-1, x:saved?.x || 0, height:0, vy:0, jumps:0, hearts:saved?.hearts || 0, energy:saved?.energy || 0, hp:3, slide:0, hurt:0,
+  run = {pickupFlights:[], slideTrail:0, slow:0, chocolates:0, musicBeat:-1, effects:[], slideBuffer:0, lastChime:-1, x:saved?.x || 0, height:0, vy:0, jumps:0, hearts:saved?.hearts || 0, energy:saved?.energy || 0, hp:3, slide:0, hurt:0,
     magnet:0, dash:0, cat:false, dashHits:0, streak:0, bestStreak:0, time:0, beats:[], platform:0, land:0, standing:null, route:null, combo:0, bestCombo:0, evidence:0, bonus:saved?.bonus || 0, items:course()};
   if (saved) for (const item of run.items) item.done = item.x <= saved.x;
 }
@@ -893,6 +894,8 @@ function update(dt) {
   run.x += dt * stages[stage].pace * (sprint ? 1.25 : 1) * (run.slow ? .57 : 1);
   run.time += dt;
   run.slideBuffer = Math.max(0,run.slideBuffer-dt);
+  run.pickupFlights = run.pickupFlights.filter(pickup => run.time-pickup.started < .27);
+  run.slideTrail = Math.max(0,run.slideTrail-dt);
   for (const effect of run.effects) {
     effect.life -= dt;
     effect.x += effect.vx*dt;
@@ -938,8 +941,12 @@ function update(dt) {
       run.land = .12;
     }
   }
+  if (run.slide && !run.slideTrail && !calmMotion) {
+    run.slideTrail = .066;
+    run.effects.push({x:playerX-18,y:floor-run.height-3,vx:-130,vy:-30,color:'#e7b1d1',life:.22});
+  }
   if (run.land === .12) {
-    addSparks(playerX,run.height,'#ffe0b7',3);
+    addSparks(playerX,run.height,'#ffe0b7',5);
     if (run.slideBuffer) {
       run.slide = .56;
       run.slideBuffer = 0;
@@ -995,7 +1002,9 @@ function update(dt) {
         item.done = true;
         run.hearts++;
         run.energy = Math.min(8, run.energy + 1);
-        addSparks(playerX+Math.max(-23,Math.min(distance,28)),item.height,'#ffd99f',2);
+        if (!calmMotion && run.magnet && distance > 23) {
+          run.pickupFlights.push({x:playerX+distance,y:floor-item.height,started:run.time});
+        } else addSparks(playerX+Math.max(-23,Math.min(distance,28)),item.height,'#ffd99f',3);
         if (run.time-run.lastChime > .085) {
           gameSound(76+run.hearts%4*2,82+run.hearts%4*2,.09,.12);
           run.lastChime = run.time;
@@ -1461,6 +1470,66 @@ function drawBonusEnding() {
   }
 }
 
+const heartJelly = [
+  '.PP...PP.','PLLP.PLLP','PLFFPFFLP','PFFFFFFFP',
+  '.PFFFFFP.','..PFFFP..','...PFP...','....P....',
+];
+const heartJellyColors = {P:'#7f3b65',L:'#ffefce',F:'#ffb4cf'};
+
+function drawHeartJelly(x,y,scale = 1) {
+  stamp(heartJelly,x-9*scale,y-8*scale,2*scale,heartJellyColors);
+}
+
+function drawAirScenery() {
+  if (calmMotion) return;
+  const art = scenery[stage];
+  ctx.save();
+  ctx.globalAlpha = .32;
+  for (let i=0; i<16; i++) {
+    const rate = i%2 ? .17 : .09;
+    const x = ((i*149+35-run.x*rate)%760+760)%760-20;
+    const y = 90+(i*47)%180+Math.sin(run.time*1.8+i)*8;
+    const size = i%3 === 0 ? 3 : 2;
+    rect(x,y,size,size,i%2 ? art.trim : art.light);
+    if (i%5 === 0) rect(x-3,y+2,2,2,art.light);
+  }
+  ctx.restore();
+}
+
+function drawRunnerTrail(feet) {
+  if (calmMotion || mode !== 'playing') return;
+  if (run.slide || run.dash || run.cat) {
+    const color = run.dash ? '#ffdb9f' : '#d9a5d8';
+    const scroll = (run.time*124)%36;
+    ctx.save();
+    ctx.globalAlpha = .68;
+    for (let i=0; i<4; i++) {
+      rect(playerX-32-i*15-scroll,feet-7-i*5,18+i*3,2,color);
+    }
+    ctx.restore();
+  }
+  if (run.height > 0 && run.jumps > 1 && run.vy > 330) {
+    ctx.save();
+    ctx.globalAlpha = .58;
+    const shift = (460-run.vy)*.07;
+    rect(playerX-23,feet+6+shift,12,2,'#d6f6ff');
+    rect(playerX+12,feet+10+shift,10,2,'#ffe3f4');
+    ctx.restore();
+  }
+}
+
+function drawPickupFlights(feet) {
+  for (const pickup of run.pickupFlights) {
+    const t = Math.max(0,(run.time-pickup.started)/.27);
+    const ease = 1-(1-t)**2;
+    const x = pickup.x+(playerX-pickup.x)*ease;
+    const y = pickup.y+(feet-46-pickup.y)*ease-24*Math.sin(Math.PI*t);
+    rect(x+9,y+2,8,2,'#a5f9e6');
+    rect(x+19,y+4,3,2,'#c4fff0');
+    drawHeartJelly(x,y,1-t*.55);
+  }
+}
+
 function draw() {
   if (mode === 'ending') {
     if (stage === lastStage) drawBonusEnding();
@@ -1518,6 +1587,7 @@ function draw() {
   }
   drawDistrict();
   drawStreetDetails();
+  drawAirScenery();
   rect(0,floor,720,60,ground);
   rect(0,floor,720,4,'#ffe0ce');
   const groundArt = scenery[stage];
@@ -1583,10 +1653,9 @@ function draw() {
     } else if (item.kind === 'pad') {
       rect(x-19,floor-7,38,7,'#a3fff0');
       rect(x-14,floor-11,28,4,'#4ccbbf');
-    } else {
-      ctx.font = 'bold 19px system-ui';
-      ctx.fillStyle = '#fff0ae';
-      ctx.fillText('♥', x-9, floor-item.height+5);
+    } else if (item.kind === 'heart') {
+      const bob = calmMotion ? 0 : Math.round(Math.sin(run.time*5+item.x*.021)*2);
+      drawHeartJelly(x,floor-item.height+bob);
     }
   }
   if (run.slow) {
@@ -1609,6 +1678,15 @@ function draw() {
   const hasPose = pose?.complete && pose.naturalWidth > 0;
   const sprite = hasPose ? pose : skins[skinIndex(stage)] || idle;
   const feet = Math.max(spriteHeight + 6, floor - run.height);
+  const shadowY = floor-(run.standing?.height || 0);
+  if (run.height > 0 || run.standing) {
+    const width = Math.max(16,38-Math.round(run.height*.11));
+    ctx.save();
+    ctx.globalAlpha = .30;
+    rect(playerX-width/2,shadowY+2,width,3,'#1b132c');
+    ctx.restore();
+  }
+  drawRunnerTrail(feet);
   if (run.platform) rect(playerX-22, feet+6,44,3,'#d4ecff');
   if (run.magnet || run.dash) {
     ctx.strokeStyle = run.magnet ? '#a3fff0' : '#ffd99a';
@@ -1632,9 +1710,14 @@ function draw() {
     ctx.drawImage(sprite, -Math.round(width/2), -height, width, height);
     ctx.restore();
   }
+  drawPickupFlights(feet);
   for (const effect of run.effects) {
     ctx.globalAlpha = Math.min(1,effect.life*5);
     rect(effect.x,effect.y,3,3,effect.color);
+    if (!calmMotion && effect.life > .2) {
+      rect(effect.x-2,effect.y+1,7,1,effect.color);
+      rect(effect.x+1,effect.y-2,1,7,effect.color);
+    }
   }
   ctx.globalAlpha = 1;
   if (run.spark > run.time) {
