@@ -190,7 +190,7 @@ small { color:#dbc8e7 }
 <div class="tag">ILLIT · 두근두근 사건파일</div>
 <h1>누구와 달릴까요?</h1>
 <div class="controls" id="stage-list" aria-label="스테이지 선택"></div>
-<div class="selection-title"><h2 id="selected-stage"></h2><span id="skin-name"></span></div>
+<div class="selection-title"><h2 id="selected-stage"></h2><span id="skin-name"></span><span id="personal-best"></span></div>
 <div id="actors" class="actors" aria-label="캐릭터 선택"></div>
 <div class="selection-footer"><p id="power"></p><button id="enter">시작 →</button></div>
 <div class="selection-help">
@@ -259,6 +259,32 @@ try {
     Number.isInteger(saved) ? Math.max(0, Math.min(5, saved)) : 0);
   if (localStorage.getItem('illit-bonus-unlocked') === 'yes') unlocked = lastStage;
 } catch {}
+const recordsKey = 'illit-personal-bests-v1';
+let personalBests = {};
+try {
+  const savedRecords = JSON.parse(localStorage.getItem(recordsKey) || '{}');
+  for (const [index, record] of Object.entries(savedRecords || {})) {
+    if (/^[0-8]$/.test(index) && Number.isInteger(record?.value) && record.value >= 0) {
+      personalBests[index] = {value:record.value};
+    }
+  }
+} catch {}
+
+function recordLabel(index) {
+  if (index === 0) return '별';
+  if (index === 3) return '박자 콤보';
+  if (index === 8) return '초콜릿';
+  return '하트';
+}
+
+function savePersonalBest() {
+  const value = stage === 0 ? run.bonus : stage === 3 ? run.bestCombo : stage === 8 ? run.chocolates : run.hearts;
+  if (personalBests[stage] && value <= personalBests[stage].value) return false;
+  personalBests[stage] = {value};
+  try { localStorage.setItem(recordsKey,JSON.stringify(personalBests)); } catch {}
+  return true;
+}
+
 const standardFinish = 14400;
 const magneticFinish = 21600;
 let finish = magneticFinish;
@@ -308,7 +334,7 @@ const encounters = [
   [3730,'sign'], [4200,'box'], [4620,'sign'], [5490,'box'], [5910,'sign'],
   [6330,'box',true], [6780,'sign'],
   [7540,'box'], [8000,'sign'], [9180,'box',true], [9590,'sign'], [10010,'box'],
-  [10900,'box',true], [11360,'sign'], [11820,'box'], [12710,'sign'], [13180,'box'], [13610,'sign'],
+  [11360,'sign'], [11820,'box'], [12710,'sign'], [13180,'box'], [13610,'sign'],
   [14570,'box'], [14960,'sign'], [15340,'box'], [16240,'sign'], [16620,'box'],
   [17010,'sign'], [17830,'box'], [18220,'sign'],
   [19110,'box'], [19480,'sign'], [19860,'box'], [20740,'sign'], [21150,'box'],
@@ -321,6 +347,7 @@ const gaps = [[1990,90],[5070,104],[12280,118],[15790,126],[18660,136],[20270,14
 const bonusLedges = [[3260,112,260],[10500,112,350],[10820,150,280],[15690,114,230],[15950,150,210],
   [18570,116,225],[18840,151,240]];
 const sweepPads = [3920,8480,14000,17420];
+const roofFork = {start:10500,end:11100};
 
 const rooftopEncounters = [
   [880,'box'], [1810,'sign'], [2680,'box'], [3580,'box'], [4310,'sign'],
@@ -413,8 +440,14 @@ function course() {
       }
     }
     for (const [x,height,width] of bonusLedges) {
-      items.push({x,height,width,kind:'ledge'});
+      const route = x >= roofFork.start && x < roofFork.end ? 'roof' : null;
+      items.push({x,height,width,kind:'ledge',route});
       for (const offset of [42,92,142]) items.push({x:x+offset,height:height+35,kind:'bonus'});
+    }
+    // Two simultaneous routes: stay at street level for the magnet, or jump to the stars.
+    items.push({x:10636,kind:'pad'});
+    for (let x=10530; x<roofFork.end; x+=42) {
+      items.push({x,height:25,kind:'heart'});
     }
     for (const x of sweepPads) {
       items.push({x,kind:'pad'});
@@ -496,6 +529,8 @@ function stageButtons() {
   }
   get('selected-stage').textContent = stageNames[stage];
   get('skin-name').textContent = (stage >= firstBonus ? '보너스 · ' : '') + skinNames[skinIndex(stage)];
+  const best = personalBests[stage];
+  get('personal-best').textContent = best ? '최고 '+recordLabel(stage)+' '+best.value : '';
 }
 
 function chooseStage(index) {
@@ -698,6 +733,14 @@ function addSparks(x, height, color, count) {
   }
 }
 
+function chargeSkill(amount) {
+  const wasFull = run.energy === 8;
+  run.energy = Math.min(8,run.energy+amount);
+  if (wasFull || run.energy !== 8) return;
+  run.chargeFlash = run.time + .46;
+  gameSound(79,91,.24,.22);
+}
+
 function jump(force = 460) {
   addSparks(playerX,run.height,run.jumps ? '#d7f8ff' : '#ffe0b7',run.jumps ? 4 : 3);
   gameSound(run.jumps ? 67 : 60,run.jumps ? 76 : 69,.11,.16);
@@ -734,12 +777,13 @@ function input(action) {
       run.combo++;
       run.bestCombo = Math.max(run.bestCombo, run.combo);
       run.hearts += 2;
-      run.energy = Math.min(8,run.energy+1);
+      chargeSkill(1);
       addSparks(playerX,run.height+60,'#f6bfff',5);
       gameSound(72+run.combo%4*2,84,.13,.18);
+      run.danceFlash = run.time+.24;
       if (run.combo % 4 === 0) {
         run.hearts += 4;
-        run.energy = Math.min(8,run.energy+2);
+        chargeSkill(2);
         run.spark = run.time + .38;
       }
     }
@@ -762,7 +806,7 @@ function input(action) {
   if (beat >= 0) {
     run.beats.splice(beat, 1);
     run.hearts += 4;
-    run.energy = Math.min(8,run.energy+1);
+    chargeSkill(1);
   }
   if (action === 'jump' && run.jumps < 2) jump();
   if (action === 'slide') {
@@ -838,6 +882,7 @@ document.addEventListener('visibilitychange', () => {
 
 function end(won) {
   mode = won ? 'clear' : 'lost';
+  const recordImproved = won && savePersonalBest();
   const canResume = !won && Boolean(checkpoint);
   get('restart').hidden = !canResume;
   if (won && stage < 5) {
@@ -857,7 +902,8 @@ function end(won) {
   const nextHint = hasNext ? '다음 스테이지' : canResume ? '체크포인트부터' : '다시 도전';
   const showResult = () => {
     const score = won ? ' · 하트 '+run.hearts+' · 연속 회피 '+run.bestStreak+' · 별 '+run.bonus : '';
-    get('notice').textContent = result + score + ' · → ' + nextHint;
+    const best = won ? ' · '+(recordImproved ? '신기록 ' : '최고 ') +recordLabel(stage)+' '+personalBests[stage].value : '';
+    get('notice').textContent = result + score + best + ' · → ' + nextHint;
     get('next').hidden = !hasNext;
   };
   if (won) showDialogue(closings[stage], () => {
@@ -884,6 +930,20 @@ function end(won) {
     } else showResult();
   });
   else showResult();
+}
+
+// Measure the character's body rather than loose hair, hands, or costume edges.
+const obstacleClearance = {
+  box:{bottom:0,top:39,halfWidth:15},
+  sign:{bottom:75,top:109,halfWidth:15},
+};
+
+function obstacleHits(kind, distance, footHeight, sliding) {
+  const bounds = obstacleClearance[kind];
+  const bodyHalfWidth = sliding ? 9 : 7;
+  const bodyHeight = sliding ? 68 : 98;
+  return Math.abs(distance) < bounds.halfWidth+bodyHalfWidth
+    && footHeight < bounds.top && footHeight+bodyHeight > bounds.bottom;
 }
 
 function update(dt) {
@@ -984,7 +1044,7 @@ function update(dt) {
       item.done = true;
       run.chocolates++;
       run.hearts += 3;
-      run.energy = Math.min(8,run.energy+2);
+      chargeSkill(2);
       addSparks(playerX,item.height,'#ffcdb6',5);
       gameSound(72,81,.13,.17);
     } else if (item.kind === 'bonus' && Math.abs(distance) < (run.platform ? 58 : 23)
@@ -992,7 +1052,7 @@ function update(dt) {
       item.done = true;
       run.bonus++;
       run.hearts += 5;
-      run.energy = Math.min(8, run.energy+2);
+      chargeSkill(2);
     } else if (item.kind === 'heart') {
       const center = run.height + (run.slide ? 17 : 40);
       const normal = Math.abs(distance) < 23 && Math.abs(item.height-center) < 31;
@@ -1001,7 +1061,7 @@ function update(dt) {
       if (normal || aerial || low || (run.magnet && distance < 125)) {
         item.done = true;
         run.hearts++;
-        run.energy = Math.min(8, run.energy + 1);
+        chargeSkill(1);
         if (!calmMotion && run.magnet && distance > 23) {
           run.pickupFlights.push({x:playerX+distance,y:floor-item.height,started:run.time});
         } else addSparks(playerX+Math.max(-23,Math.min(distance,28)),item.height,'#ffd99f',3);
@@ -1013,11 +1073,8 @@ function update(dt) {
     } else if (item.kind === 'pad' && previousX < item.x && run.x >= item.x && run.height < 18) {
       item.done = true;
       run.magnet = Math.max(run.magnet, 2.3);
-    } else if (['box','sign'].includes(obstacleKind(item.kind)) && Math.abs(distance) < 23) {
-      const bottom = run.height;
-      const top = bottom + (run.slide ? 69 : 99);
-      const collision = obstacleKind(item.kind) === 'box' ? bottom < 40 : top > 74 && bottom < 109;
-      if (!collision) continue;
+    } else if (obstacleClearance[obstacleKind(item.kind)] &&
+        obstacleHits(obstacleKind(item.kind),distance,run.height,Boolean(run.slide))) {
       if (run.dash && run.dashHits > 0) {
         item.done = true;
         run.dashHits--;
@@ -1044,8 +1101,9 @@ function update(dt) {
     run.bestStreak = Math.max(run.bestStreak,run.streak);
     if (run.streak % 5 === 0) {
       run.hearts += 5;
-      run.energy = Math.min(8,run.energy+2);
+      chargeSkill(2);
       run.spark = run.time + .38;
+      gameSound(69,81,.23,.19);
     }
   }
   if (stage === 3) {
@@ -1267,7 +1325,7 @@ function drawObstacle(x, kind) {
   const unit = 3;
   const left = x-16;
   const groundBox = kind === 'box';
-  const y = groundBox ? floor-40 : floor-109;
+  const y = floor-obstacleClearance[kind].top;
   const palette = {O:'#21192e',H:trim,S:shade,F:shade,M:wall};
   const variant = obstacleVariants[stage];
   const rows = groundBox ? groundObstacleSheet[variant] : hangingObstacleSheet[variant];
@@ -1464,7 +1522,7 @@ function drawBonusEnding() {
     ctx.fillStyle = '#fff1e5'; ctx.font = 'bold 34px system-ui';
     ctx.fillText('우리의 달콤한 오후',360,192);
     ctx.font = '17px system-ui';
-    ctx.fillText('모은 초콜릿 '+run.chocolates+'개',360,233);
+    ctx.fillText('모은 초콜릿 '+run.chocolates+'개 · 최고 '+(personalBests[lastStage]?.value ?? 0)+'개',360,233);
     if (t >= bonusCreditsTime) ctx.fillText('→ 타이틀로',360,278);
     ctx.restore();
   }
@@ -1632,8 +1690,13 @@ function draw() {
     } else if (item.kind === 'ledge') {
       const y = floor-item.height;
       const visible = lit(item);
-      rect(x,y,item.width,visible ? 7 : 2,visible ? (stage === 0 ? '#ffc4e7' : '#bdf4ff') : '#827dad');
-      if (visible) rect(x,y+6,item.width,4,'#748dd7');
+      rect(x,y,item.width,visible ? 7 : 2,visible ? (item.route === 'roof' ? '#ffe6a2' : stage === 0 ? '#ffc4e7' : '#bdf4ff') : '#827dad');
+      if (visible) {
+        rect(x,y+6,item.width,4,item.route === 'roof' ? '#c98494' : '#748dd7');
+        if (item.route === 'roof') {
+          for (let offset=12; offset<item.width-5; offset+=22) rect(x+offset,y+2,5,2,'#fff6cf');
+        }
+      }
     } else if (item.kind === 'checkpoint') {
       rect(x-2,floor-135,4,135,'#a7fce8');
       rect(x,floor-135,76,30,'#2f6874');
@@ -1720,6 +1783,18 @@ function draw() {
     }
   }
   ctx.globalAlpha = 1;
+  if (run.chargeFlash > run.time) {
+    const rise = (1-(run.chargeFlash-run.time)/.46)*18;
+    for (const dx of [-22,0,22]) {
+      rect(playerX+dx-3,feet-114-rise,7,2,'#fff5a9');
+      rect(playerX+dx,feet-117-rise,2,8,'#fff5a9');
+    }
+  }
+  if (run.danceFlash > run.time) {
+    const width = 30+(1-(run.danceFlash-run.time)/.24)*38;
+    rect(playerX-width/2,feet+1,width,3,'#ffbdf4');
+    rect(playerX-width/2+5,feet+6,width-10,2,'#c7a6ff');
+  }
   if (run.spark > run.time) {
     for (let i=0; i<5; i++) {
       const angle = i*Math.PI*2/5;
