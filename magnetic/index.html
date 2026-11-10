@@ -217,6 +217,7 @@ small { color:#dbc8e7 }
 <button id="intro-continue">계속 · Enter</button>
 </div>
 </section>
+<p id="storage-status" role="status" hidden></p>
 <section id="selection" hidden>
 <div class="tag">ILLIT · 두근두근 사건파일</div>
 <h1>누구와 달릴까요?</h1>
@@ -224,6 +225,8 @@ small { color:#dbc8e7 }
 <div class="selection-title"><h2 id="selected-stage"></h2><span id="skin-name"></span><span id="personal-best"></span></div>
 <div id="actors" class="actors" aria-label="캐릭터 선택"></div>
 <div class="selection-footer"><p id="power"></p><button id="enter">시작 →</button></div>
+<label><input id="story-first" type="checkbox"> 시작 전에 스테이지 대화 보기</label>
+<small>최고 기록과 두 길 탐험 목표는 이번 접속 동안 유지돼요.</small>
 <div class="selection-help"><small id="rescue-help" hidden>6탄 · 증거 3개를 모아 보라색 아치를 지난 뒤 ← 호루라기</small>
 <small>↑↓ 줄 이동 · ←→ 선택 · Enter 시작<br>달리기 · ↑ 점프 · ↓ 슬라이드 · → 특수기</small>
 </div>
@@ -290,12 +293,25 @@ let unlocked = 0;
 const firstBonus = 6;
 const lastStage = 8;
 const bonusFinish = 7800;
+function storageWarning(message) {
+  get('storage-status').textContent = message;
+  get('storage-status').hidden = false;
+}
+function saveUnlock(key, value) {
+  try {
+    localStorage.setItem(key,value);
+  } catch {
+    storageWarning('진행 상황을 저장하지 못했어요. 열린 스테이지는 이번 실행 동안 이용할 수 있어요.');
+  }
+}
 try {
   const saved = Number(localStorage.getItem('illit-stage-unlocked'));
   unlocked = Math.max(localStorage.getItem('illit-midnight-unlocked') === 'yes' ? 1 : 0,
-    Number.isInteger(saved) ? Math.max(0, Math.min(5, saved)) : 0);
+    Number.isInteger(saved) && saved >= 0 && saved <= 5 ? saved : 0);
   if (localStorage.getItem('illit-bonus-unlocked') === 'yes') unlocked = lastStage;
-} catch {}
+} catch {
+  storageWarning('저장된 진행 상황을 읽을 수 없어요. 이번 실행에서는 처음부터 시작해요.');
+}
 const personalBests = {};
 const routeBests = {street:0, roof:0};
 
@@ -722,9 +738,15 @@ function showDialogue(lines, onClose) {
 get('advance').addEventListener('click', advanceDialogue);
 
 function enterPlay() {
+  if (get('selection').hidden || dialogue || mode === 'playing') return;
   showPlay(true);
   startMusic();
-  showDialogue(openings[stage], start);
+  const begin = () => {
+    start();
+    canvas.focus();
+  };
+  if (get('story-first').checked) showDialogue(openings[stage], begin);
+  else begin();
 }
 get('enter').addEventListener('click', enterPlay);
 get('back').addEventListener('click', () => {
@@ -890,11 +912,13 @@ window.addEventListener('keydown', event => {
   if (enter && get('play').hidden && !get('selection').hidden) {
     event.preventDefault();
     if (!event.repeat) {
-      showPlay(true);
-      startMusic();
-      start();
-      canvas.focus();
+      enterPlay();
     }
+    return;
+  }
+  if (enter && !get('play').hidden) {
+    event.preventDefault();
+    if (!event.repeat && dialogue) advanceDialogue();
     return;
   }
   const action = {ArrowUp:'jump',ArrowDown:'slide',ArrowRight:'skill',ArrowLeft:'whistle'}[event.code];
@@ -957,7 +981,7 @@ function end(won) {
   get('restart').hidden = !canResume;
   if (won && stage < 5) {
     unlocked = Math.max(unlocked,stage+1);
-    try { localStorage.setItem('illit-stage-unlocked',String(unlocked)); } catch {}
+    saveUnlock('illit-stage-unlocked',String(unlocked));
     stageButtons();
 
   }
@@ -992,7 +1016,7 @@ function end(won) {
       endingTime = 0;
       mode = 'ending';
       unlocked = lastStage;
-      try { localStorage.setItem('illit-bonus-unlocked','yes'); } catch {}
+      saveUnlock('illit-bonus-unlocked','yes');
       stageButtons();
       if (musicEnabled && audioContext?.state === 'running') {
         const now = audioContext.currentTime;
