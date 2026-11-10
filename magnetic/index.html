@@ -189,6 +189,22 @@ small { color:#dbc8e7 }
 @keyframes title-moonlight { from { opacity:.76; transform:translateY(4px) } to { opacity:1; transform:translateY(-5px) } }
 @keyframes title-sparkle { from { opacity:.3; transform:translateY(2px) } to { opacity:1; transform:translateY(-7px) } }
 @media (prefers-reduced-motion:reduce) { .title-screen * { animation:none !important } }
+
+/* Soft surfaces frame the pixel characters like a mobile character collector. */
+body { background:radial-gradient(ellipse at 20% 0%,#493455 0%,#201d37 48%,#131322 100%); }
+button { background:linear-gradient(180deg,#514363,#302b48); border-color:#a58bad66; box-shadow:inset 0 1px #ffffff22,0 4px 12px #110e2633; transition:transform .15s,box-shadow .15s; }
+button:active { transform:translateY(2px); }
+.actors { gap:12px; }
+.actors button { border-radius:22px; background:radial-gradient(ellipse at 50% 25%,#796180,#37314e 75%); padding:14px 4px 10px; box-shadow:inset 0 1px #ffffff44,0 8px 24px #100c263d; }
+.actors img { filter:drop-shadow(0 6px 5px #15102766); }
+.actors button[aria-pressed=true] { background:radial-gradient(ellipse at 50% 20%,#fff1dc,#efb4cf 75%); box-shadow:0 0 0 2px #ffe5b9,0 8px 28px #df8db933; }
+#enter { border-radius:18px; padding:12px 26px; background:linear-gradient(#ffe6ed,#f0aacb); box-shadow:inset 0 2px #fff8,0 5px 0 #995c83,0 9px 20px #160e2933; }
+canvas { image-rendering:auto; border:1px solid #dfb5d777; border-radius:22px; box-shadow:0 18px 65px #100b2855; }
+.hud span { background:linear-gradient(145deg,#30223de8,#201d3ad9); border:1px solid #f4d3ed44; box-shadow:inset 0 1px #fff2,0 3px 8px #0002; }
+.story { background:linear-gradient(145deg,#41304ff5,#211e37fa); border-color:#ffd6ebaa; box-shadow:0 12px 35px #100b2866; }
+#storage-status { padding:12px; border-radius:12px; background:#49344c; }
+.selection-footer + label { display:block; margin:16px 0 6px; font-size:.85rem; }
+@media (prefers-reduced-motion:reduce) { button { transition:none; } }
 </style>
 </head>
 <body>
@@ -269,6 +285,10 @@ const members = [
 const get = id => document.getElementById(id);
 const canvas = get('scene');
 const ctx = canvas.getContext('2d');
+// Render UI and scenery at 2x while retaining the logical 720 × 438 playfield.
+canvas.width = 1440;
+canvas.height = 876;
+ctx.scale(2,2);
 ctx.imageSmoothingEnabled = false;
 const sprites = new Map();
 const stageBackgrounds = paintedScenes.map(source => {
@@ -1441,10 +1461,11 @@ const obstacleDrawings = [
 ];
 
 function makeObstacleSprite(shape,art) {
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="80" height="88" viewBox="0 0 40 44">
-    <defs><linearGradient id="body" x2="0%" y2="100%"><stop stop-color="${art.wall}"/><stop offset="1" stop-color="${art.shade}"/></linearGradient></defs>
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="160" height="176" viewBox="0 0 40 44">
+    <defs><linearGradient id="body" x2="0%" y2="100%"><stop stop-color="${art.light}"/><stop offset=".35" stop-color="${art.wall}"/><stop offset="1" stop-color="${art.shade}"/></linearGradient></defs>
     <style>.body{fill:url(#body);stroke:#21172b;stroke-width:2;stroke-linejoin:round}.shine{fill:${art.light};stroke:${art.shade};stroke-width:1.3;stroke-linejoin:round}.detail{fill:none;stroke:${art.trim};stroke-width:2;stroke-linecap:round;stroke-linejoin:round}</style>
-    ${shape}</svg>`;
+    <g stroke="#fff2eb" stroke-width="4" stroke-linejoin="round" opacity=".85">${shape.replaceAll('class="body"','fill="none"').replaceAll('class="shine"','fill="none"').replaceAll('class="detail"','fill="none"')}</g>
+    ${shape}<path d="M8 40Q20 43 32 40" fill="none" stroke="#fff4e5" stroke-opacity=".35" stroke-width="1.2"/></svg>`;
   const sprite = new Image();
   sprite.src = 'data:image/svg+xml;charset=utf-8,'+encodeURIComponent(svg);
   return sprite;
@@ -1682,23 +1703,47 @@ const pickupStyles = [
   {icon:'♡',light:'#fff1da',fill:'#c88679',edge:'#62394d',sound:75},
 ];
 
+const pickupPaths = [
+  'M0 10C-22-3-12-17 0-7C12-17 22-3 0 10Z',
+  'M7-12A14 14 0 1 0 9 11A12 12 0 0 1 7-12Z',
+  'M-14-9H14V10H-14ZM-13-8L0 2L13-8',
+  'M-4 6V-12L12-15V3M-4-6L12-9M-4 6A5 4 0 1 1-5 2M12 3A5 4 0 1 1 11-1',
+  'M0-15L13 0L0 15L-13 0ZM0-15V15M-13 0H13',
+  'M0-15L4-4L15 0L4 4L0 15L-4 4L-15 0L-4-4Z',
+  'M0-5C-13-21-20-1-7 2C-20 13 0 21 1 8C13 22 22 1 8 1C23-12 2-22 0-5Z',
+  'M0-14A14 14 0 1 0 .01-14ZM0-9V0L7 4',
+  'M-11-13H11V13H-11ZM-11-4H11M-11 4H11M0-13V13',
+];
+const pickupSprites = pickupStyles.map((art,index) => {
+  const picture = new Image();
+  picture.src = 'data:image/svg+xml;charset=utf-8,'+encodeURIComponent(
+    `<svg xmlns="http://www.w3.org/2000/svg" width="96" height="96" viewBox="-24 -24 48 48">
+    <defs><linearGradient id="c" x2=".3" y2="1"><stop stop-color="${art.light}"/><stop offset=".45" stop-color="${art.fill}"/><stop offset="1" stop-color="${art.edge}"/></linearGradient></defs>
+    <path d="${pickupPaths[index]}" transform="translate(0 2)" fill="${art.edge}" stroke="${art.edge}" stroke-width="3" stroke-linejoin="round"/>
+    <path d="${pickupPaths[index]}" fill="url(#c)" stroke="${art.light}" stroke-width="1.4" stroke-linejoin="round" stroke-linecap="round"/>
+    <ellipse cx="-5" cy="-7" rx="3.5" ry="1.8" fill="white" opacity=".72" transform="rotate(-25)"/>
+    </svg>`);
+  return picture;
+});
+
 function drawStagePickup(x,y,scale = 1,accent = false) {
-  const art = pickupStyles[stage];
+  const picture = pickupSprites[stage];
   ctx.save();
-  ctx.translate(Math.round(x),Math.round(y));
+  ctx.translate(x,y);
   ctx.scale(scale,scale);
-  ctx.beginPath();
-  ctx.arc(0,0,accent ? 11 : 9,0,Math.PI*2);
-  ctx.fillStyle = art.fill;
-  ctx.fill();
-  ctx.lineWidth = 2;
-  ctx.strokeStyle = accent ? '#fff1ad' : art.edge;
-  ctx.stroke();
-  ctx.fillStyle = art.light;
-  ctx.font = 'bold 13px system-ui';
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle';
-  ctx.fillText(art.icon,0,1);
+  ctx.imageSmoothingEnabled = true;
+  if (accent) {
+    ctx.strokeStyle = '#ffe6a899';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.arc(0,0,14,0,Math.PI*2);
+    ctx.stroke();
+  }
+  if (picture.complete && picture.naturalWidth) ctx.drawImage(picture,-17,-17,34,34);
+  else {
+    ctx.fillStyle = pickupStyles[stage].fill;
+    ctx.beginPath(); ctx.arc(0,0,8,0,Math.PI*2); ctx.fill();
+  }
   ctx.restore();
 }
 
@@ -1720,17 +1765,25 @@ function drawPaintedScene() {
 }
 
 function drawAirScenery() {
-  if (calmMotion) return;
   const art = scenery[stage];
   ctx.save();
-  ctx.globalAlpha = .32;
-  for (let i=0; i<16; i++) {
-    const rate = i%2 ? .17 : .09;
-    const x = ((i*149+35-run.x*rate)%760+760)%760-20;
-    const y = 90+(i*47)%180+Math.sin(run.time*1.8+i)*8;
-    const size = i%3 === 0 ? 3 : 2;
-    rect(x,y,size,size,i%2 ? art.trim : art.light);
-    if (i%5 === 0) rect(x-3,y+2,2,2,art.light);
+  // Atmosphere stays above the hazard lane and moves at two depths.
+  for (let i=0; i<14; i++) {
+    const rate = i%2 ? .12 : .035;
+    const x = ((i*149+35-run.x*rate)%800+800)%800-40;
+    const y = 55+(i*47)%170+(calmMotion ? 0 : Math.sin(run.time*.7+i)*9);
+    ctx.globalAlpha = i%3 === 0 ? .12 : .32;
+    ctx.fillStyle = i%2 ? art.trim : art.light;
+    ctx.beginPath();
+    ctx.ellipse(x,y,i%3 === 0 ? 12 : 3,i%3 === 0 ? 12 : 1.6,i*.6,0,Math.PI*2);
+    ctx.fill();
+  }
+  ctx.globalAlpha = .10;
+  ctx.fillStyle = art.light;
+  for (let i=0; i<3; i++) {
+    const x = i*300-((run.x*.02)%300);
+    ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x+40,0);
+    ctx.lineTo(x+160,250); ctx.lineTo(x+55,250); ctx.closePath(); ctx.fill();
   }
   ctx.restore();
 }
@@ -1792,12 +1845,14 @@ function draw() {
   }
   drawAirScenery();
   rect(0,floor,720,60,ground);
-  rect(0,floor,720,4,'#ffe0ce');
+  rect(0,floor,720,3,'#fff1df');
+  rect(0,floor+3,720,3,scenery[stage].light);
   const groundArt = scenery[stage];
   const street = ctx.createLinearGradient(0,floor,0,438);
   street.addColorStop(0,ground);
   street.addColorStop(1,groundArt.shade);
-  rect(0,floor+4,720,56,street);
+  rect(0,floor+6,720,54,street);
+  rect(0,floor+6,720,2,'#15112688');
   ctx.save();
   ctx.globalAlpha = .25;
   for (let i=0;i<11;i++) {
@@ -1942,7 +1997,10 @@ function draw() {
   drawPickupFlights(feet);
   for (const effect of run.effects) {
     ctx.globalAlpha = Math.min(1,effect.life*5);
-    rect(effect.x,effect.y,3,3,effect.color);
+    ctx.fillStyle = effect.color;
+    ctx.beginPath();
+    ctx.arc(effect.x,effect.y,Math.max(1,effect.life*5),0,Math.PI*2);
+    ctx.fill();
     if (!calmMotion && effect.life > .2) {
       rect(effect.x-2,effect.y+1,7,1,effect.color);
       rect(effect.x+1,effect.y-2,1,7,effect.color);
